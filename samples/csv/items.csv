@@ -1,0 +1,54 @@
+item_id,description,item_type,make_buy,uom,std_cost,lead_time_days,supplier_id,commodity,buyer,on_hand,safety_stock,cm_hours_per_unit
+VCB-15-1200,Vacuum circuit breaker 15 kV 1200 A,RM,buy,EA,28000.0,112.0,S100,Breakers,B1 Electrical,8.0,0.0,0.0
+VCB-15-2000,Vacuum circuit breaker 15 kV 2000 A,RM,buy,EA,36000.0,126.0,S100,Breakers,B1 Electrical,2.0,0.0,0.0
+RLY-FDR,Feeder protection relay,RM,buy,EA,6500.0,84.0,S110,Protection,B1 Electrical,8.0,2.0,0.0
+RLY-MAIN,Main protection relay,RM,buy,EA,9800.0,84.0,S110,Protection,B1 Electrical,2.0,1.0,0.0
+RLY-LEGACY,"Feeder relay, previous model (superseded)",RM,buy,EA,4800.0,84.0,S110,Protection,B1 Electrical,14.0,0.0,0.0
+CT-600,Current transformer 600:5,RM,buy,EA,650.0,56.0,S120,Instrument transformers,B1 Electrical,40.0,6.0,0.0
+CT-2000,Current transformer 2000:5,RM,buy,EA,1100.0,56.0,S120,Instrument transformers,B1 Electrical,6.0,0.0,0.0
+PT-15,Voltage transformer 15 kV,RM,buy,EA,2400.0,70.0,S120,Instrument transformers,B1 Electrical,4.0,0.0,0.0
+ENC-SWG-36,"Switchgear enclosure 36 in, welded and painted",RM,cm,EA,9500.0,35.0,CM200,Fabrication,B2 Fabrication,10.0,0.0,22.0
+BUS-CU-1200,Copper bus assembly 1200 A,RM,cm,EA,4200.0,28.0,CM210,Copper bus,B2 Fabrication,8.0,0.0,10.0
+BUS-CU-2000,Copper bus assembly 2000 A,RM,cm,EA,6800.0,28.0,CM210,Copper bus,B2 Fabrication,2.0,0.0,14.0
+WIRE-KIT-SWG,Control wiring harness kit,RM,cm,EA,1300.0,21.0,CM220,Harnesses,B2 Fabrication,10.0,2.0,6.0
+HW-KIT-SWG,"Hardware kit, switchgear section",RM,buy,EA,380.0,14.0,S180,Hardware,B3 Raw materials,30.0,10.0,0.0
+CORE-2500,Core assembly 2.5 MVA,RM,cm,EA,18500.0,49.0,CM230,Cores,B2 Fabrication,2.0,0.0,40.0
+CORE-7500,Core assembly 7.5 MVA,RM,cm,EA,42000.0,63.0,CM230,Cores,B2 Fabrication,0.0,0.0,85.0
+TANK-2500,Transformer tank 2.5 MVA,RM,cm,EA,7800.0,42.0,CM200,Fabrication,B2 Fabrication,4.0,0.0,30.0
+TANK-7500,Transformer tank 7.5 MVA,RM,cm,EA,16500.0,49.0,CM200,Fabrication,B2 Fabrication,0.0,0.0,60.0
+DETC-25,De-energized tap changer 25 kV,RM,buy,EA,3900.0,98.0,S140,Tap changers,B4 Transformer parts,5.0,0.0,0.0
+OLTC-75,On-load tap changer 7.5 MVA,RM,buy,EA,48000.0,154.0,S140,Tap changers,B4 Transformer parts,0.0,0.0,0.0
+BUSH-HV-25,HV bushing 25 kV,RM,buy,EA,1450.0,98.0,S130,Bushings,B4 Transformer parts,14.0,0.0,0.0
+BUSH-HV-69,HV bushing 69 kV,RM,buy,EA,6800.0,126.0,S130,Bushings,B4 Transformer parts,0.0,0.0,0.0
+BUSH-LV,LV bushing,RM,buy,EA,420.0,56.0,S130,Bushings,B4 Transformer parts,90.0,8.0,0.0
+CU-MAG,Copper magnet wire,RM,buy,KG,14.5,42.0,S150,Copper,B3 Raw materials,4600.0,1000.0,0.0
+INS-KIT-2500,Insulation kit 2.5 MVA,RM,buy,EA,2900.0,35.0,S190,Insulation,B4 Transformer parts,3.0,0.0,0.0
+INS-KIT-7500,Insulation kit 7.5 MVA,RM,buy,EA,6400.0,35.0,S190,Insulation,B4 Transformer parts,0.0,0.0,0.0
+FLUID-ESTER,Natural ester dielectric fluid,RM,buy,L,4.2,21.0,S160,Fluids,B3 Raw materials,9000.0,2000.0,0.0
+RAD-1200,Radiator panel,RM,buy,EA,1150.0,63.0,S170,Radiators,B4 Transformer parts,10.0,0.0,0.0
+GSK-KIT,Gasket kit,RM,buy,EA,260.0,14.0,S180,Hardware,B3 Raw materials,12.0,4.0,0.0
+SA-SWG-BKR,Breaker section 15 kV 1200 A,SFG,make,EA,51830.0,10.0,,Sub-assembly,,0.0,0.0,0.0
+SA-SWG-INC,Incomer section 15 kV 2000 A,SFG,make,EA,71880.0,10.0,,Sub-assembly,,0.0,0.0,0.0
+COIL-2500,Coil set 2.5 MVA,SFG,make,EA,18850.0,12.0,,Sub-assembly,,4.0,0.0,0.0
+COIL-7500,Coil set 7.5 MVA,SFG,make,EA,58600.0,15.0,,Sub-assembly,,0.0,0.0,0.0
+PKG-PC-2601,Engineered protection and SCADA package (P-2601),RM,buy,EA,52000.0,70.0,S110,Protection,B1 Electrical,0.0,0.0,0.0
+LU-2601,"MV switchgear lineup, 2 incomer + 6 feeder sections (P-2601)",FG,make,EA,0.0,15.0,,Finished goods,,0.0,0.0,0.0
+PKG-PC-2602,Engineered protection and SCADA package (P-2602),RM,buy,EA,68000.0,70.0,S110,Protection,B1 Electrical,0.0,0.0,0.0
+LU-2602,"MV switchgear lineup, 2 incomer + 10 feeder sections (P-2602)",FG,make,EA,0.0,15.0,,Finished goods,,0.0,0.0,0.0
+TX-2603,Substation transformer 7.5 MVA (P-2603),FG,make,EA,0.0,20.0,,Finished goods,,0.0,0.0,0.0
+TX-2604,Pad-mount transformer 2.5 MVA (P-2604),FG,make,EA,0.0,20.0,,Finished goods,,0.0,0.0,0.0
+PKG-PC-2605,Engineered protection and SCADA package (P-2605),RM,buy,EA,61000.0,70.0,S110,Protection,B1 Electrical,1.0,0.0,0.0
+LU-2605,"MV switchgear lineup, 2 incomer + 8 feeder sections (P-2605)",FG,make,EA,0.0,15.0,,Finished goods,,0.0,0.0,0.0
+TX-2606,Substation transformer 7.5 MVA (P-2606),FG,make,EA,0.0,20.0,,Finished goods,,0.0,0.0,0.0
+PKG-PC-2607,Engineered protection and SCADA package (P-2607),RM,buy,EA,39000.0,70.0,S110,Protection,B1 Electrical,0.0,0.0,0.0
+LU-2607,"MV switchgear lineup, 1 incomer + 4 feeder sections (P-2607)",FG,make,EA,0.0,12.0,,Finished goods,,0.0,0.0,0.0
+TX-2608,Pad-mount transformer 2.5 MVA (P-2608),FG,make,EA,0.0,22.0,,Finished goods,,0.0,0.0,0.0
+PKG-PC-2609,Engineered protection and SCADA package (P-2609),RM,buy,EA,55000.0,70.0,S110,Protection,B1 Electrical,0.0,0.0,0.0
+LU-2609,"MV switchgear lineup, 2 incomer + 6 feeder sections (P-2609)",FG,make,EA,0.0,15.0,,Finished goods,,0.0,0.0,0.0
+TX-2610,Substation transformer 7.5 MVA (P-2610),FG,make,EA,0.0,22.0,,Finished goods,,0.0,0.0,0.0
+PKG-PC-2611,Engineered protection and SCADA package (P-2611),RM,buy,EA,74000.0,70.0,S110,Protection,B1 Electrical,0.0,0.0,0.0
+LU-2611,"MV switchgear lineup, 2 incomer + 12 feeder sections (P-2611)",FG,make,EA,0.0,18.0,,Finished goods,,0.0,0.0,0.0
+TX-2612,Pad-mount transformer 2.5 MVA (P-2612),FG,make,EA,0.0,20.0,,Finished goods,,0.0,0.0,0.0
+TX-2613,Substation transformer 7.5 MVA (P-2613),FG,make,EA,0.0,20.0,,Finished goods,,0.0,0.0,0.0
+PKG-PC-2614,Engineered protection and SCADA package (P-2614),RM,buy,EA,47000.0,70.0,S110,Protection,B1 Electrical,0.0,0.0,0.0
+LU-2614,"MV switchgear lineup, 1 incomer + 6 feeder sections (P-2614)",FG,make,EA,0.0,15.0,,Finished goods,,0.0,0.0,0.0

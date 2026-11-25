@@ -1,0 +1,20 @@
+supplier_id,name,supplier_type,region,commodity
+S100,Veltrano Breakers,Supplier,EU,Vacuum breakers
+S101,Marlowe Switch Components,Supplier,North America,Vacuum breakers
+S110,Qorvane Protection Systems,Supplier,North America,Protection relays and P&C
+S120,Brightmere Instruments,Supplier,North America,Instrument transformers
+S121,Kestavo Metering,Supplier,Mexico,Instrument transformers
+S130,Tarnwick Bushings,Supplier,EU,Bushings
+S140,Ellerby Tap Changers,Supplier,EU,Tap changers
+S150,Copperfen Wire,Supplier,North America,Magnet wire
+S151,Nordvale Wire,Supplier,North America,Magnet wire
+S160,Greyfen Fluids,Supplier,North America,Dielectric fluid
+S170,Ashcombe Radiators,Supplier,North America,Radiators
+S180,Boltwright Supply,Supplier,North America,Hardware and gaskets
+S181,Harrowgate Industrial,Supplier,North America,Hardware and gaskets
+S190,Insulcraft Materials,Supplier,North America,Insulation
+CM200,Ironvale Fabrication,CM,North America,Enclosures and tanks
+CM210,Busmark Assemblies,CM,North America,Copper bus assemblies
+CM220,Lattix Harness,CM,Mexico,Control wiring harnesses
+CM230,Corefield Lamination,CM,North America,Transformer cores
+CM240,Stellmark Cores,CM,North America,Transformer cores

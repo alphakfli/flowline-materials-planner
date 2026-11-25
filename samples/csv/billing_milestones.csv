@@ -1,0 +1,71 @@
+project_id,milestone_id,name,trigger,pct,planned_date,invoice_no,invoice_date,amount_invoiced,paid_date
+P-2601,M1,Order,Order,10.0,2026-06-01,INV-2601-M1,2026-06-01,0.0,2026-07-11
+P-2601,M2,Drawings approved,Drawings approved,20.0,2026-08-15,INV-2601-M2,2026-07-31,0.0,2026-09-09
+P-2601,M3,Start of manufacturing,Build start,20.0,2026-10-29,INV-2601-M3,2026-10-31,0.0,
+P-2601,M4,Shipment,Shipment,40.0,2026-11-25,,,0.0,
+P-2601,M5,Commissioning,Commissioning,10.0,2027-01-09,,,0.0,
+P-2602,M1,Order,Order,10.0,2026-06-18,INV-2602-M1,2026-06-18,0.0,2026-07-28
+P-2602,M2,Drawings approved,Drawings approved,20.0,2026-09-01,,,0.0,
+P-2602,M3,Start of manufacturing,Build start,20.0,2026-11-15,INV-2602-M3,2026-11-17,0.0,
+P-2602,M4,Shipment,Shipment,40.0,2026-12-06,,,0.0,
+P-2602,M5,Commissioning,Commissioning,10.0,2027-01-20,,,0.0,
+P-2603,M1,Order,Order,10.0,2026-06-20,INV-2603-M1,2026-06-20,0.0,2026-07-30
+P-2603,M2,Drawings approved,Drawings approved,20.0,2026-09-03,INV-2603-M2,2026-08-19,0.0,
+P-2603,M3,Start of manufacturing,Build start,20.0,2026-11-17,INV-2603-M3,2026-11-19,0.0,
+P-2603,M4,Shipment,Shipment,40.0,2026-12-17,,,0.0,
+P-2603,M5,Commissioning,Commissioning,10.0,2027-01-31,,,0.0,
+P-2604,M1,Order,Order,10.0,2026-07-02,INV-2604-M1,2026-07-02,0.0,2026-08-11
+P-2604,M2,Drawings approved,Drawings approved,20.0,2026-09-15,INV-2604-M2,2026-08-31,0.0,2026-10-10
+P-2604,M3,Start of manufacturing,Build start,20.0,2026-11-29,,,0.0,
+P-2604,M4,Shipment,Shipment,40.0,2026-12-27,,,0.0,
+P-2604,M5,Commissioning,Commissioning,10.0,2027-02-10,,,0.0,
+P-2605,M1,Order,Order,10.0,2026-07-08,INV-2605-M1,2026-07-08,0.0,2026-08-17
+P-2605,M2,Drawings approved,Drawings approved,20.0,2026-09-21,INV-2605-M2,2026-09-06,0.0,2026-10-16
+P-2605,M3,Start of manufacturing,Build start,20.0,2026-12-05,,,0.0,
+P-2605,M4,Shipment,Shipment,40.0,2026-12-30,,,0.0,
+P-2605,M5,Commissioning,Commissioning,10.0,2027-02-13,,,0.0,
+P-2606,M1,Order,Order,10.0,2026-07-16,INV-2606-M1,2026-07-16,0.0,2026-08-25
+P-2606,M2,Drawings approved,Drawings approved,20.0,2026-09-29,INV-2606-M2,2026-09-14,0.0,2026-10-24
+P-2606,M3,Start of manufacturing,Build start,20.0,2026-12-13,,,0.0,
+P-2606,M4,Shipment,Shipment,40.0,2027-01-09,,,0.0,
+P-2606,M5,Commissioning,Commissioning,10.0,2027-02-23,,,0.0,
+P-2607,M1,Order,Order,10.0,2026-07-24,INV-2607-M1,2026-07-24,0.0,2026-09-02
+P-2607,M2,Drawings approved,Drawings approved,20.0,2026-10-07,INV-2607-M2,2026-09-22,0.0,2026-11-01
+P-2607,M3,Start of manufacturing,Build start,20.0,2026-12-21,,,0.0,
+P-2607,M4,Shipment,Shipment,40.0,2027-01-16,,,0.0,
+P-2607,M5,Commissioning,Commissioning,10.0,2027-03-02,,,0.0,
+P-2608,M1,Order,Order,10.0,2026-07-31,INV-2608-M1,2026-07-31,0.0,2026-09-09
+P-2608,M2,Drawings approved,Drawings approved,20.0,2026-10-14,INV-2608-M2,2026-09-29,0.0,2026-11-08
+P-2608,M3,Start of manufacturing,Build start,20.0,2026-12-28,,,0.0,
+P-2608,M4,Shipment,Shipment,40.0,2027-01-29,,,0.0,
+P-2608,M5,Commissioning,Commissioning,10.0,2027-03-15,,,0.0,
+P-2609,M1,Order,Order,10.0,2026-08-13,INV-2609-M1,2026-08-13,0.0,2026-09-22
+P-2609,M2,Drawings approved,Drawings approved,20.0,2026-10-27,,,0.0,
+P-2609,M3,Start of manufacturing,Build start,20.0,2027-01-10,,,0.0,
+P-2609,M4,Shipment,Shipment,40.0,2027-02-06,,,0.0,
+P-2609,M5,Commissioning,Commissioning,10.0,2027-03-23,,,0.0,
+P-2610,M1,Order,Order,10.0,2026-08-27,INV-2610-M1,2026-08-27,0.0,
+P-2610,M2,Drawings approved,Drawings approved,20.0,2026-11-10,INV-2610-M2,2026-10-26,0.0,
+P-2610,M3,Start of manufacturing,Build start,20.0,2027-01-24,,,0.0,
+P-2610,M4,Shipment,Shipment,40.0,2027-03-05,,,0.0,
+P-2610,M5,Commissioning,Commissioning,10.0,2027-04-19,,,0.0,
+P-2611,M1,Order,Order,10.0,2026-09-14,INV-2611-M1,2026-09-14,0.0,2026-10-24
+P-2611,M2,Drawings approved,Drawings approved,20.0,2026-11-28,,,0.0,
+P-2611,M3,Start of manufacturing,Build start,20.0,2027-02-11,,,0.0,
+P-2611,M4,Shipment,Shipment,40.0,2027-03-16,,,0.0,
+P-2611,M5,Commissioning,Commissioning,10.0,2027-04-30,,,0.0,
+P-2612,M1,Order,Order,10.0,2026-09-29,INV-2612-M1,2026-09-29,0.0,
+P-2612,M2,Drawings approved,Drawings approved,20.0,2026-12-13,,,0.0,
+P-2612,M3,Start of manufacturing,Build start,20.0,2027-02-26,,,0.0,
+P-2612,M4,Shipment,Shipment,40.0,2027-04-07,,,0.0,
+P-2612,M5,Commissioning,Commissioning,10.0,2027-05-22,,,0.0,
+P-2613,M1,Order,Order,10.0,2026-10-24,INV-2613-M1,2026-10-24,0.0,
+P-2613,M2,Drawings approved,Drawings approved,20.0,2027-01-07,,,0.0,
+P-2613,M3,Start of manufacturing,Build start,20.0,2027-03-23,,,0.0,
+P-2613,M4,Shipment,Shipment,40.0,2027-05-02,,,0.0,
+P-2613,M5,Commissioning,Commissioning,10.0,2027-06-16,,,0.0,
+P-2614,M1,Order,Order,10.0,2026-11-13,INV-2614-M1,2026-11-13,0.0,
+P-2614,M2,Drawings approved,Drawings approved,20.0,2027-01-27,,,0.0,
+P-2614,M3,Start of manufacturing,Build start,20.0,2027-04-12,,,0.0,
+P-2614,M4,Shipment,Shipment,40.0,2027-05-17,,,0.0,
+P-2614,M5,Commissioning,Commissioning,10.0,2027-07-01,,,0.0,

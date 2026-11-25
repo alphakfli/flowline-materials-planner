@@ -1,0 +1,15 @@
+project_id,customer,product_family,top_item,qty,status,planned_build_start,build_days,required_ship_date,sell_value,priority
+P-2601,Varnley Municipal Utility,Switchgear,LU-2601,1.0,Built,2026-10-29,15.0,2026-11-25,866000.0,1.0
+P-2602,Quillfield Data Campus,Switchgear,LU-2602,1.0,In build,2026-11-15,15.0,2026-12-06,1283000.0,1.0
+P-2603,Orrindale Wind LP,Transformers,TX-2603,2.0,In build,2026-11-17,20.0,2026-12-17,786000.0,1.0
+P-2604,Tessmoor Water Authority,Transformers,TX-2604,4.0,Released,2026-11-29,20.0,2026-12-27,454000.0,2.0
+P-2605,Brackenhollow Mine,Switchgear,LU-2605,1.0,Released,2026-12-05,15.0,2026-12-30,1024000.0,2.0
+P-2606,Lumrey Solar 2,Transformers,TX-2606,1.0,Released,2026-12-13,20.0,2027-01-09,397000.0,1.0
+P-2607,Elmbrae General Hospital,Switchgear,LU-2607,1.0,Released,2026-12-21,12.0,2027-01-16,509000.0,2.0
+P-2608,Corrowick Transit,Transformers,TX-2608,6.0,Released,2026-12-28,22.0,2027-01-29,724000.0,3.0
+P-2609,Danthorpe Logistics Park,Switchgear,LU-2609,1.0,Released,2027-01-10,15.0,2027-02-06,887000.0,3.0
+P-2610,Fenwold Co-op Power,Transformers,TX-2610,2.0,Released,2027-01-24,22.0,2027-03-05,762000.0,2.0
+P-2611,Quillfield Data Campus Phase 2,Switchgear,LU-2611,1.0,Released,2027-02-11,18.0,2027-03-16,1388000.0,2.0
+P-2612,Varnley Municipal Utility,Transformers,TX-2612,3.0,Released,2027-02-26,20.0,2027-04-07,342000.0,3.0
+P-2613,Orrindale Wind LP Phase 2,Transformers,TX-2613,1.0,Released,2027-03-23,20.0,2027-05-02,373000.0,2.0
+P-2614,Brackenhollow Mine expansion,Switchgear,LU-2614,1.0,Planned,2027-04-12,15.0,2027-05-17,721000.0,4.0

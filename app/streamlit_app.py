@@ -1,0 +1,970 @@
+"""FlowLine Materials Planner dashboard.  Run:  streamlit run app/streamlit_app.py"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+# Let the app find the package without installing it (Streamlit Community Cloud runs this file directly).
+_SRC = Path(__file__).resolve().parents[1] / "src"
+if _SRC.is_dir() and str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
+
+from dataclasses import replace as _replace
+
+import numpy as np
+import pandas as pd
+import plotly.graph_objects as go
+import streamlit as st
+
+from flowline.engine import Scenario, fmt_money, run
+from flowline.io.importer import load_files, workbook_bytes
+from flowline.io.template import template_bytes
+from flowline.meetings import STAKEHOLDERS, alerts_to_actions
+from flowline.models import normalize
+from flowline.reports import excel_report, meeting_pack_pdf, pdf_report, powerquery_workbook, project_review_pdf
+from flowline.reports.vsm_iso import vsm_iso_html
+from flowline.sample import build_sample
+from flowline.team import KPI
+from flowline.vsm import future_state
+
+st.set_page_config(page_title="FlowLine Materials Planner", page_icon="🏭", layout="wide")
+# informational deltas ("target 4.0", "of 15") show without an arrow where Streamlit supports it
+import inspect as _inspect  # noqa: E402
+
+NOARROW = {"delta_arrow": "off"} if "delta_arrow" in _inspect.signature(st.metric).parameters else {}
+
+# Palette: categorical slots in fixed order, status colors reserved for state (always shown with a label)
+SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"]
+GOOD, WARN, SERIOUS, CRIT, NEUTRAL = "#0ca30c", "#fab219", "#ec835a", "#d03b3b", "#9a9893"
+INK, INK2, GRID = "#0b0b0b", "#52514e", "#e1e0d9"
+STATUS_COLOR = {"Clear to build": GOOD, "Clear by start": "#6cc46c", "At risk": WARN, "Late": CRIT,
+                "In build": NEUTRAL, "Built": "#c3c2b7"}
+STATUS_ICON = {"Clear to build": "✅", "Clear by start": "🟢", "At risk": "🟠", "Late": "🔴", "In build": "🔧", "Built": "📦"}
+SEV_ICON = {"Critical": "🔴", "Warning": "🟠", "Info": "🔵"}
+st.markdown("""<style>
+.block-container{padding-top:1.3rem}
+div[data-testid="stMetricValue"]{font-size:1.55rem}
+div[data-testid="stMetricLabel"] p{font-size:.82rem;color:#52514e}
+</style>""", unsafe_allow_html=True)
+
+
+@st.cache_data(show_spinner=False)
+def _sample():
+    return build_sample()
+
+
+@st.cache_data(show_spinner=False)
+def _upload(files: tuple[tuple[str, bytes], ...]):
+    return load_files(dict(files))
+
+
+def _fig(fig, height=330, **kw):
+    fig.update_layout(height=height, margin=dict(l=8, r=8, t=36, b=8), plot_bgcolor="#fcfcfb", paper_bgcolor="rgba(0,0,0,0)",
+                      font=dict(size=12, color=INK), legend=dict(orientation="h", y=1.1, x=0, title=None),
+                      hoverlabel=dict(bgcolor="white"), **kw)
+    fig.update_xaxes(showgrid=False, linecolor=GRID)
+    fig.update_yaxes(gridcolor=GRID, zeroline=False)
+    return fig
+
+
+def _d(v):
+    return None if v is None or (isinstance(v, float) and np.isnan(v)) else pd.Timestamp(v)
+
+
+def table(df: pd.DataFrame, config: dict | None = None, **kw):
+    """st.dataframe with readable column headers (snake_case -> Sentence case) and blank instead of None."""
+    cfg = {c: st.column_config.Column(c.replace("_", " ").capitalize().replace(" pct", " %").replace("Otd", "OTD")
+                                      .replace("Ppv", "PPV").replace("Doi", "DOI").replace("Cm ", "CM ").replace("Po ", "PO "))
+           for c in df.columns}
+    cfg.update(config or {})
+    st.dataframe(df, hide_index=True, width="stretch", column_config=cfg, **kw)
+
+
+def money_cols(cur, *cols):
+    return {c: st.column_config.NumberColumn(c.replace("_", " ").capitalize(), format=f"{cur}%,.0f") for c in cols}
+
+
+# ---------------- sidebar ----------------
+with st.sidebar:
+    st.header("Data")
+    src = st.radio("Source", ["Sample company", "Upload Excel or CSV"], label_visibility="collapsed")
+    issues = []
+    if src == "Sample company":
+        data = _sample()
+        st.caption("Corvane Grid Equipment (fictional): an engineer-to-order plant building MV switchgear and "
+                   "transformers. 14 customer projects, 4 contract manufacturers, 15 suppliers.")
+    else:
+        up = st.file_uploader("One .xlsx workbook (a sheet per table) or CSV files named items.csv, bom.csv …",
+                              type=["xlsx", "xlsm", "csv"], accept_multiple_files=True)
+        st.download_button("Download blank template", template_bytes(), "flowline_template.xlsx", width="stretch")
+        if not up:
+            st.info("Upload your data to start, or switch back to the sample company.")
+            st.stop()
+        data, issues = _upload(tuple((f.name, f.getvalue()) for f in up))
+        if any(i.severity == "error" for i in issues):
+            st.error("The data has errors. See Data and exports.")
+
+    # the action log is edited in the app: keep the edits for this data source during the session
+    akey = "sample" if src == "Sample company" else "|".join(sorted(f.name for f in up))
+    if st.session_state.get("actions_key") != akey:
+        st.session_state["actions_key"] = akey
+        st.session_state["actions_df"] = data.actions.copy()
+    data = _replace(data, actions=normalize("actions", st.session_state["actions_df"]))
+
+    st.header("What-if")
+    sup_names = data.supplier_names()
+    sups = sorted(set(data.purchase_orders["supplier_id"]) - {""})
+    slip_sup = st.selectbox("Supplier slips or recovers", ["(none)"] + sups,
+                            format_func=lambda x: x if x == "(none)" else f"{x} {sup_names.get(x, '')}")
+    slip_days = 0
+    if slip_sup != "(none)":
+        slip_days = st.slider("Days later (+) or earlier (–) on all open lines", -30, 60, 21, 1)
+    pdays = st.slider("Past-due POs arrive in (days)", 0, 45, int(data.settings.past_due_arrival_days),
+                      help="Open PO lines whose promised date has passed are assumed to arrive this many days from today.")
+    push = st.checkbox("Apply all push-outs and cancellations",
+                       help="Move every PO to its suggested date and cancel quantity no open project needs. "
+                            "Shows what the year-end landing would be if the suppliers agree.")
+    name = "Base case"
+    if slip_days or push or pdays != data.settings.past_due_arrival_days:
+        parts = ([f"{slip_sup} {slip_days:+d} days"] if slip_days else []) + (["push-outs applied"] if push else []) + \
+                ([f"past due in {pdays}d"] if pdays != data.settings.past_due_arrival_days else [])
+        name = "What-if: " + ", ".join(parts)
+    scen = Scenario(name=name, supplier_delay={slip_sup: slip_days} if slip_days else {}, past_due_arrival_days=pdays,
+                    apply_push_outs=push)
+    st.caption("Built for an engineer-to-order materials team. Open source, MIT licence.")
+
+try:
+    r = run(data, scen)
+    base = run(data) if scen.name != "Base case" else r
+except Exception as e:     # show data problems instead of a stack trace
+    st.error(f"The model could not run on this data: {e}")
+    st.stop()
+S, B = r.summary(), base.summary()
+s = r.settings
+cur = s.currency
+
+
+def delta(key, fmt=lambda v: f"{v:+,.0f}", inverse=False):
+    if scen.name == "Base case":
+        return None
+    dv = S[key] - B[key]
+    if abs(dv) < 1e-9:
+        return None
+    return fmt(dv)
+
+
+# ---------------- header ----------------
+st.title("FlowLine Materials Planner")
+st.caption(f"{s.company} · as of {s.as_of_date:%A %d %B %Y} · fiscal year end {s.year_end:%d %b %Y} · **{scen.name}**")
+c = st.columns(6)
+c[0].metric("Projects clear to build", f"{S['projects_clear']} of {S['projects_open']}",
+            delta("projects_clear"), help="Clear now, or all material arrives before the planned build start.")
+c[1].metric("Projects late to customer", S["projects_late"], delta("projects_late"), delta_color="inverse")
+c[2].metric("Inventory now", fmt_money(S["inventory_now"], cur), help="Raw materials, semi-finished, WIP and finished goods at standard cost.")
+c[3].metric("Year-end landing", fmt_money(S["year_end"], cur),
+            delta(("year_end"), lambda v: fmt_money(v, cur)), delta_color="inverse",
+            help=f"Projected inventory on {s.year_end:%d %b}; target {fmt_money(S['year_end_target'], cur)}.")
+c[4].metric("Year-end turns vs target", f"{S['turns_year_end']:.1f} vs {S['turns_target']:.1f}", delta(("turns_year_end"), lambda v: f"{v:+.1f}"),
+            help="Fiscal-year COGS (closed months plus projection) divided by year-end inventory.")
+c[5].metric("Critical alerts", S["alerts_critical"], delta("alerts_critical"), delta_color="inverse")
+
+tabs = st.tabs(["Overview", "Clear to build", "Inventory & working capital", "Contract manufacturers", "Suppliers",
+                "Supply risk", "Cost reduction", "Project financials", "Team & KPIs", "Meetings & actions", "Alerts", "Data and exports",
+                "Value stream"])
+
+# ---------------- Overview ----------------
+with tabs[0]:
+    left, right = st.columns([1.05, 1])
+    with left:
+        st.subheader("Where each customer project stands")
+        pj = r.ctb.projects.copy()
+        order = ["Late", "At risk", "Clear by start", "Clear to build", "In build", "Built"]
+        cnt = pj["ctb_status"].value_counts().reindex(order).dropna()
+        fig = go.Figure(go.Bar(x=cnt.values, y=[f"{STATUS_ICON[k]} {k}" for k in cnt.index], orientation="h",
+                               marker_color=[STATUS_COLOR[k] for k in cnt.index], text=cnt.values, textposition="outside",
+                               hovertemplate="%{y}: %{x} projects<extra></extra>"))
+        fig.update_yaxes(autorange="reversed", showgrid=False)
+        fig.update_xaxes(visible=False)
+        st.plotly_chart(_fig(fig, 250, showlegend=False), width="stretch")
+        k = r.inventory.kpis
+        st.subheader("Year-end working capital")
+        g = st.columns(3)
+        g[0].metric("Gap to target", fmt_money(k["year_end_gap"], cur), delta_color="off", **NOARROW)
+        g[1].metric("Push-out / cancel lever", fmt_money(k["push_out_value"], cur))
+        g[2].metric("Excess stock", fmt_money(k["excess_value"], cur))
+        if k["year_end_gap"] > 0:
+            covered = min(1.0, (k["push_out_value"] + k["excess_value"]) / k["year_end_gap"])
+            st.progress(covered, text=f"Identified levers cover {covered:.0%} of the gap")
+    with right:
+        st.subheader("Top actions")
+        top = r.alerts.head(10)
+        for a in top.itertuples():
+            st.markdown(f"{SEV_ICON[a.severity]} **{a.area}** · {a.message}  \n<span style='color:{INK2}'>→ {a.action} "
+                        f"*({a.owner})*</span>", unsafe_allow_html=True)
+        st.caption(f"{len(r.alerts)} alerts in total. See the Alerts tab.")
+    g = st.columns(4)
+    g[0].metric("CM commitment (commit window)", "–" if np.isnan(S["cm_commit_pct"]) else f"{S['cm_commit_pct']:.0f}%")
+    g[1].metric("CM on-time delivery", "–" if np.isnan(S["cm_otd_pct"]) else f"{S['cm_otd_pct']:.0f}%")
+    g[2].metric("Supplier on-time delivery", "–" if np.isnan(S["supplier_otd_pct"]) else f"{S['supplier_otd_pct']:.0f}%",
+                help=f"Window: {s.otd_early_days} days early to {s.otd_late_days} days late, last {s.history_months} months.")
+    g[3].metric("Purchase price variance, 12 months", fmt_money(S["ppv"], cur),
+                "–" if np.isnan(S["ppv_pct"]) else f"{S['ppv_pct']:+.1f}% vs standard", delta_color="inverse")
+    g = st.columns(4)
+    g[0].metric("Department KPIs on target", f"{S['dept_kpis_met']} of {S['dept_kpis']}", help="See Team & KPIs.")
+    g[1].metric("Savings realized vs target", fmt_money(S["savings_realized"], cur),
+                f"target {fmt_money(S['savings_target'], cur)}" if S["savings_target"] else None, delta_color="off", **NOARROW)
+    g[2].metric("Overdue actions", S["actions_overdue"], f"{S['actions_open']} open", delta_color="off", **NOARROW)
+    g[3].metric("High supply risks", S["risks_high"], help="Entered and detected risks with likelihood x impact of 15 or more.")
+    if r.financials is not None:
+        g = st.columns(4)
+        g[0].metric("Project margin forecast", f"{S['fin_margin_forecast_pct']:.1f}%",
+                    f"{S['fin_margin_forecast_pct'] - S['fin_margin_sold_pct']:+.1f} pts vs sold", help="See Project financials.")
+        g[1].metric("Invoices not raised", S["fin_due_not_invoiced_count"], fmt_money(S["fin_due_not_invoiced"], cur),
+                    delta_color="off", **NOARROW)
+        g[2].metric("Receivables overdue", fmt_money(S["fin_ar_overdue"], cur), f"DSO {S['fin_dso']:.0f} days", delta_color="off", **NOARROW)
+        g[3].metric("FY billing at risk", fmt_money(S["fin_billing_at_risk_fy"], cur))
+
+# ---------------- Clear to build ----------------
+with tabs[1]:
+    pj = r.ctb.projects.copy()
+    st.subheader("Clear-to-build by customer project")
+    st.caption("Projects are allocated stock and open POs in build-start order. *Material ready* is when the last part "
+               "(or sub-assembly) is available; *can ship* adds the build time.")
+    fig = go.Figure()
+    for p in pj.itertuples():
+        y = f"{p.project_id} {p.customer[:22]}"
+        fig.add_trace(go.Scatter(x=[p.planned_build_start, p.planned_build_start + pd.Timedelta(days=p.build_days)], y=[y, y],
+                                 mode="lines", line=dict(color=GRID, width=12), showlegend=False,
+                                 hovertemplate=f"{p.project_id} planned build<extra></extra>"))
+        fig.add_trace(go.Scatter(x=[p.forecast_build_start, p.forecast_finish], y=[y, y], mode="lines",
+                                 line=dict(color=STATUS_COLOR.get(p.ctb_status, NEUTRAL), width=6), showlegend=False,
+                                 hovertemplate=f"{p.project_id}: {p.ctb_status}<br>Build {p.forecast_build_start:%d %b} to "
+                                               f"{p.forecast_finish:%d %b}<extra></extra>"))
+        fig.add_trace(go.Scatter(x=[p.required_ship_date], y=[y], mode="markers", showlegend=False,
+                                 marker=dict(symbol="line-ns", size=14, line=dict(width=2, color=INK)),
+                                 hovertemplate=f"Customer date {p.required_ship_date:%d %b}<extra></extra>"))
+    fig.add_vline(x=pd.Timestamp(s.as_of_date), line=dict(color=INK2, dash="dot", width=1))
+    fig.update_yaxes(autorange="reversed", showgrid=False)
+    st.plotly_chart(_fig(fig, 40 + 26 * len(pj)), width="stretch")
+    st.caption("Grey bar: planned build. Colored bar: forecast build from material availability "
+               "(green clear, amber at risk, red late, grey in build). Black tick: customer date. Dotted line: today.")
+    show = pj.assign(status=[f"{STATUS_ICON.get(x, '')} {x}" for x in pj["ctb_status"]])
+    table(show[["project_id", "customer", "product_family", "status", "planned_build_start", "material_ready",
+                       "gating_item", "forecast_build_start", "forecast_ship", "required_ship_date", "days_late",
+                       "late_lines", "on_hand_pct", "sell_value"]], {"on_hand_pct": st.column_config.ProgressColumn("Material on hand", format="%.0f%%",
+                                                                               min_value=0, max_value=100),
+                                **money_cols(cur, "sell_value")})
+
+    st.subheader("Drill into a project")
+    active = pj.loc[~pj["ctb_status"].isin(["In build", "Built"]), "project_id"].tolist()
+    if active:
+        default = pj.loc[pj["ctb_status"] == "Late", "project_id"]
+        sel = st.selectbox("Project", active, index=active.index(default.iloc[0]) if len(default) else 0)
+        p = pj[pj["project_id"] == sel].iloc[0]
+        a = st.columns(4)
+        a[0].metric("Status", f"{STATUS_ICON.get(p.ctb_status, '')} {p.ctb_status}")
+        a[1].metric("Material ready", f"{p.material_ready:%d %b %Y}", f"{(p.material_ready - p.planned_build_start).days:+d} days vs start",
+                    delta_color="inverse")
+        a[2].metric("Can ship", f"{p.forecast_ship:%d %b %Y}", f"{-p.float_days:+d} days vs customer", delta_color="inverse")
+        a[3].metric("Gating part", p.gating_item or "none")
+        rq = r.ctb.requirements[r.ctb.requirements["project_id"] == sel].copy()
+        rq["part"] = ["    " * int(lv) + i for lv, i in zip(rq["level"], rq["item_id"], strict=False)]
+        rq["flag"] = np.where(rq["short_qty"] > 0, "🔴 not on order",
+                              np.where(rq["days_late"] > 0, "🟠 late", np.where(rq["to_build"] > 0, "🔧 build", "")))
+        table(rq[["part", "description", "qty_required", "from_stock", "from_po", "to_build", "short_qty", "need_date",
+                         "ready_date", "days_late", "flag", "sources"]], height=420,
+              config={"part": st.column_config.TextColumn("Part (indented by BOM level)")})
+    st.subheader("Late and missing parts")
+    sh = r.ctb.shortages
+    f1, f2 = st.columns(2)
+    issue = f1.multiselect("Issue", sorted(sh["issue"].unique()), default=[x for x in sh["issue"].unique() if x != "Not yet ordered"])
+    buyer = f2.multiselect("Buyer", sorted(sh["buyer"].dropna().unique()))
+    v = sh[sh["issue"].isin(issue)] if issue else sh
+    v = v[v["buyer"].isin(buyer)] if buyer else v
+    table(v, money_cols(cur, "value_at_risk"))
+    st.subheader("Long-lead parts")
+    st.caption(f"Parts with a lead time of {s.long_lead_days} days or more, with the date they must be on order.")
+    table(r.ctb.long_lead)
+
+# ---------------- Inventory ----------------
+with tabs[2]:
+    k = r.inventory.kpis
+    a = st.columns(5)
+    a[0].metric("Inventory now", fmt_money(k["inventory_now"], cur))
+    a[1].metric("Turns now", f"{k['turns_now']:.1f}", help="Trailing 12-month COGS / inventory now.")
+    a[2].metric("Days of inventory", f"{k['doi_now']:.0f}")
+    a[3].metric("Year-end landing", fmt_money(k["year_end"], cur), f"{fmt_money(k['year_end_gap'], cur)} vs target",
+                delta_color="inverse")
+    a[4].metric(f"Year-end turns (target {s.turns_target:.1f})", f"{k['turns_year_end']:.1f}")
+
+    st.subheader("Inventory by stock type: actuals and projection")
+    pr = r.inventory.projection
+    fig = go.Figure()
+    for i, t in enumerate(["Raw materials", "Semi-finished", "WIP", "Finished goods"]):
+        x = pr[pr["stock_type"] == t]
+        fig.add_trace(go.Bar(x=x["month"], y=x["value"], name=t, marker_color=SERIES[i],
+                             marker_line=dict(color="#fcfcfb", width=1),
+                             customdata=x["kind"], hovertemplate=f"{t}<br>%{{x|%b %Y}}: {cur}%{{y:,.0f}} (%{{customdata}})<extra></extra>"))
+    tgt = k["year_end_target"]
+    if not np.isnan(tgt):
+        fig.add_hline(y=tgt, line=dict(color=INK, dash="dash", width=1),
+                      annotation_text=f"Year-end target {fmt_money(tgt, cur)}", annotation_position="top left")
+    first_proj = pr.loc[pr["kind"] == "Projected", "month"].min()
+    if pd.notna(first_proj):
+        fig.add_vrect(x0=first_proj - pd.Timedelta(days=15), x1=pr["month"].max() + pd.Timedelta(days=15),
+                      fillcolor="#e1e0d9", opacity=0.25, line_width=0, annotation_text="Projection", annotation_position="top right", layer="below")
+    fig.update_layout(barmode="stack", bargap=0.25)
+    fig.update_yaxes(tickprefix=cur)
+    st.plotly_chart(_fig(fig, 380), width="stretch")
+    st.caption("The projection follows the material plan: PO receipts in, material issued to WIP when each project can "
+               "actually start, WIP to finished goods at build finish, out at shipment. It covers the open order book only.")
+    l1, l2 = st.columns([1, 1.15])
+    with l1:
+        st.subheader("Landing by stock type")
+        table(r.inventory.landing, {**money_cols(cur, "now", "year_end", "target", "gap"),
+                                    "doi_now": st.column_config.NumberColumn("DOI now", format="%.0f"),
+                                    "doi_year_end": st.column_config.NumberColumn("DOI year end", format="%.0f")})
+    with l2:
+        st.subheader("Bridge: landing to target")
+        lv = r.inventory.levers
+        po_lev = float(lv.loc[~lv["lever"].eq("Excess stock"), "year_end_impact"].sum()) if len(lv) else 0.0
+        ex_lev = float(lv.loc[lv["lever"].eq("Excess stock"), "year_end_impact"].sum()) if len(lv) else 0.0
+        after = k["year_end"] - po_lev - ex_lev
+        fig = go.Figure(go.Waterfall(
+            x=["Year-end landing", "Push out / cancel POs", "Sell down excess", "After levers", "Target"],
+            measure=["absolute", "relative", "relative", "total", "absolute"],
+            y=[k["year_end"], -po_lev, -ex_lev, 0, tgt if not np.isnan(tgt) else 0],
+            text=[fmt_money(v, cur) for v in [k["year_end"], -po_lev, -ex_lev, after, tgt]], textposition="outside",
+            increasing=dict(marker_color=SERIOUS), decreasing=dict(marker_color=SERIES[2]),
+            totals=dict(marker_color=SERIES[0]), connector=dict(line=dict(color=GRID))))
+        fig.update_yaxes(tickprefix=cur)
+        st.plotly_chart(_fig(fig, 320, showlegend=False), width="stretch")
+    st.subheader("Levers on the year-end landing")
+    table(r.inventory.levers, money_cols(cur, "year_end_impact"))
+    st.subheader("PO exception messages")
+    pa = r.ctb.po_actions
+    acts = st.multiselect("Action", sorted(pa["action"].unique()), default=[x for x in pa["action"].unique() if x != "OK"])
+    table(pa[pa["action"].isin(acts)] if acts else pa, money_cols(cur, "value", "year_end_impact"))
+    st.subheader("Excess: not needed by any open project")
+    table(r.ctb.excess, money_cols(cur, "excess_value", "unneeded_on_order_value"))
+
+# ---------------- Contract manufacturers ----------------
+with tabs[3]:
+    perf = r.cm.performance
+    st.subheader("Contract manufacturer summary")
+    table(perf, {"otd_pct": st.column_config.NumberColumn("OTD %", format="%.0f%%"),
+                                "commit_pct_window": st.column_config.NumberColumn("Commit % (window)", format="%.0f%%"),
+                                "peak_load_pct": st.column_config.NumberColumn("Peak load", format="%.0f%%"),
+                                "forecast_change_pct": st.column_config.NumberColumn("Demand change since forecast", format="%+.0f%%"),
+                                "quality_ppm": st.column_config.NumberColumn("Quality ppm", format="%,.0f"),
+                                "avg_days_late": st.column_config.NumberColumn("Avg days late (when late)", format="%.1f")})
+    cms = perf["cm_id"].tolist()
+    if cms:
+        names = dict(zip(perf["cm_id"], perf["name"], strict=False))
+        cm = st.selectbox("Contract manufacturer", cms, format_func=lambda x: f"{x} {names.get(x, '')}")
+        pl = r.cm.plan[r.cm.plan["cm_id"] == cm]
+        fig = go.Figure()
+        for i, (col, nm) in enumerate([("forecast_hours", "Forecast sent"), ("committed_hours", "Committed by CM"),
+                                       ("demand_now_hours", "Our demand now")]):
+            fig.add_trace(go.Bar(x=pl["month"], y=pl[col], name=nm, marker_color=SERIES[[0, 2, 1][i]],
+                                 hovertemplate=f"{nm}<br>%{{x|%b %Y}}: %{{y:,.0f}} h<extra></extra>"))
+        fig.add_trace(go.Scatter(x=pl["month"], y=pl["capacity_hours"], name="CM capacity", mode="lines+markers",
+                                 line=dict(color=INK, width=2, dash="dash"), marker=dict(size=8),
+                                 hovertemplate="Capacity %{x|%b %Y}: %{y:,.0f} h<extra></extra>"))
+        win = pl[pl["in_commit_window"]]["month"]
+        if len(win):
+            fig.add_vrect(x0=win.min() - pd.Timedelta(days=15), x1=win.max() + pd.Timedelta(days=15), fillcolor="#e1e0d9",
+                          opacity=0.25, line_width=0, annotation_text=f"Commit window ({s.cm_commit_horizon_months} months)",
+                          annotation_position="top left", layer="below")
+        fig.update_layout(barmode="group", bargap=0.25, bargroupgap=0.08)
+        fig.update_yaxes(title="Hours")
+        st.plotly_chart(_fig(fig, 360), width="stretch")
+        st.caption("Forecast sent: the last forecast we gave the CM. Committed: what the CM has confirmed. "
+                   "Our demand now: today's requirement from open projects, so a gap to the forecast means it is stale.")
+        table(r.cm.by_item[r.cm.by_item["cm_id"] == cm])
+        rec = r.suppliers.receipts
+        rec = rec[rec["supplier_id"] == cm] if len(rec) else rec
+        if len(rec):
+            m = rec.groupby("month").agg(otd=("on_time", "mean"), lines=("on_time", "size")).reset_index()
+            fig = go.Figure(go.Bar(x=m["month"], y=100 * m["otd"], marker_color=SERIES[0], customdata=m["lines"],
+                                   hovertemplate="%{x|%b %Y}: %{y:.0f}% on time (%{customdata} lines)<extra></extra>"))
+            fig.add_hline(y=s.otd_target_pct, line=dict(color=INK, dash="dash", width=1),
+                          annotation_text=f"Target {s.otd_target_pct:.0f}%")
+            fig.update_yaxes(range=[0, 105], ticksuffix="%")
+            st.plotly_chart(_fig(fig, 260, title=dict(text="On-time delivery by month", font=dict(size=14))), width="stretch")
+
+# ---------------- Suppliers ----------------
+with tabs[4]:
+    sc = r.suppliers.scorecard
+    k = r.suppliers.kpis
+    a = st.columns(4)
+    a[0].metric("Supplier OTD (12 months)", "–" if np.isnan(k["otd_pct"]) else f"{k['otd_pct']:.0f}%")
+    a[1].metric("Spend (12 months)", fmt_money(k["spend_12m"], cur))
+    a[2].metric("PPV", fmt_money(k["ppv"], cur), "–" if np.isnan(k["ppv_pct"]) else f"{k['ppv_pct']:+.1f}%", delta_color="inverse")
+    a[3].metric("Single-source items", k["single_source_items"],
+                help=f"{k['dual_in_progress']} of them have a second source in qualification or identified.")
+    a[3].caption(f"{k['dual_in_progress']} with a second source in progress")
+    st.subheader("Scorecard")
+    st.caption("Score = 50% on-time delivery + 30% quality (rejects in ppm) + 20% price (PPV). A ≥ 85, B ≥ 70, C below.")
+    live = sc[sc["receipt_lines"] > 0].sort_values("otd_pct")
+    fig = go.Figure(go.Bar(x=live["otd_pct"], y=live["name"], orientation="h",
+                           marker_color=[CRIT if v < s.otd_target_pct - 15 else WARN if v < s.otd_target_pct else GOOD for v in live["otd_pct"]],
+                           customdata=np.stack([live["grade"], live["receipt_lines"]], axis=1),
+                           hovertemplate="%{y}: %{x:.0f}% on time, grade %{customdata[0]} (%{customdata[1]} lines)<extra></extra>"))
+    fig.add_vline(x=s.otd_target_pct, line=dict(color=INK, dash="dash", width=1), annotation_text=f"Target {s.otd_target_pct:.0f}%")
+    fig.update_xaxes(range=[0, 105], ticksuffix="%", showgrid=True, gridcolor=GRID)
+    fig.update_yaxes(showgrid=False)
+    st.plotly_chart(_fig(fig, 30 + 22 * len(live), title=dict(text="On-time delivery, last 12 months (red: more than 15 points below target)", font=dict(size=14))),
+                    width="stretch")
+    table(sc, {**money_cols(cur, "spend_12m", "ppv", "open_po_value", "single_source_spend"),
+                                "otd_pct": st.column_config.NumberColumn("OTD %", format="%.0f%%"),
+                                "avg_days_late": st.column_config.NumberColumn("Avg days late (when late)", format="%.1f"),
+                                "early_pct": st.column_config.NumberColumn("Early %", format="%.0f%%"),
+                                "ppv_pct": st.column_config.NumberColumn("PPV %", format="%+.1f%%"),
+                                "quality_ppm": st.column_config.NumberColumn("Quality ppm", format="%,.0f"),
+                                "score": st.column_config.ProgressColumn("Score", format="%.0f", min_value=0, max_value=100)})
+    st.subheader("Single-source risk and dual sourcing")
+    so = r.suppliers.sourcing
+    pipe = so[so["single_source"]]["dual_status"].value_counts()
+    b = st.columns(len(pipe) or 1)
+    for i, (kk, vv) in enumerate(pipe.items()):
+        b[i].metric(kk, vv)
+    only = st.toggle("Single-source items only", True)
+    table(so[so["single_source"]] if only else so, {**money_cols(cur, "spend_12m", "open_po_value"),
+                                "risk_score": st.column_config.ProgressColumn("Risk", format="%.0f", min_value=0, max_value=100)})
+    st.caption("Risk score (single-source items): lead time 40, 12-month spend 30, open projects exposed 20, current shortage 10.")
+
+
+# ---------------- Supply risk ----------------
+with tabs[5]:
+    rk = r.risk
+    a = st.columns(4)
+    a[0].metric("High risks", rk.kpis["risks_high"], f"of {rk.kpis['risks_total']}", delta_color="off", **NOARROW)
+    a[1].metric("Safety-stock changes", rk.kpis["ss_raise"] + rk.kpis["ss_lower"],
+                f"{fmt_money(rk.kpis['ss_value_change'], cur)} net", delta_color="off", **NOARROW)
+    a[2].metric("Logistics on time", "–" if np.isnan(rk.kpis["lsp_otd_pct"]) else f"{rk.kpis['lsp_otd_pct']:.0f}%")
+    a[3].metric("Premium freight, 12 months", fmt_money(rk.kpis["premium_freight"], cur))
+
+    st.subheader("Risk register")
+    st.caption("Risks you entered plus risks the model detects (single source with no second source or a shortage, "
+               "unreliable suppliers, CM overload, long-lead parts not ordered, late carriers, low safety stock). "
+               "Score = likelihood x impact, each 1 to 5. High is 15 or more.")
+    reg = rk.register
+    hm = reg[reg["status"].str.lower() != "closed"].groupby(["likelihood", "impact"]).size()
+    z = [[int(hm.get((lk, im), 0)) for im in range(1, 6)] for lk in range(1, 6)]
+    sev = [[lk * im for im in range(1, 6)] for lk in range(1, 6)]
+    fig = go.Figure(go.Heatmap(z=sev, x=[1, 2, 3, 4, 5], y=[1, 2, 3, 4, 5], showscale=False, xgap=3, ygap=3,
+                               colorscale=[[0, "#eef5ee"], [0.3, "#fbf0cf"], [0.6, "#f8d9c6"], [1, "#f1c0c0"]],
+                               text=[[str(v) if v else "" for v in row] for row in z], texttemplate="%{text}",
+                               textfont=dict(size=16, color=INK),
+                               hovertemplate="Likelihood %{y}, impact %{x}: %{text} open risk(s)<extra></extra>"))
+    fig.update_xaxes(title="Impact", dtick=1)
+    fig.update_yaxes(title="Likelihood", dtick=1, showgrid=False)
+    h1, h2 = st.columns([1, 1.6])
+    with h1:
+        st.plotly_chart(_fig(fig, 330, showlegend=False), width="stretch")
+        st.caption("Number of open risks per cell. Shading: green low, amber medium, red high.")
+    with h2:
+        table(reg, height=330, config={"risk": st.column_config.TextColumn(width="large"),
+                                       "mitigation": st.column_config.TextColumn(width="medium")})
+
+    st.subheader("Safety stock for repeat parts")
+    st.caption(f"Recommended = z x sqrt(lead time / 30 x demand variance + (demand / 30)^2 x delivery-delay variance), "
+               f"at {s.service_level_pct:.0f}% service. Engineered, project-specific parts carry no safety stock. "
+               f"A change is suggested when the current level is more than {s.safety_stock_tolerance_pct:.0f}% off.")
+    ssd = rk.safety_stock
+    if len(ssd):
+        fig = go.Figure()
+        fig.add_trace(go.Bar(y=ssd["item_id"], x=ssd["current_ss"] / ssd["avg_monthly_use"] * 30.4, orientation="h",
+                             name="Current", marker_color=SERIES[0],
+                             hovertemplate="%{y}: current covers %{x:.0f} days<extra></extra>"))
+        fig.add_trace(go.Bar(y=ssd["item_id"], x=ssd["recommended_ss"] / ssd["avg_monthly_use"] * 30.4, orientation="h",
+                             name="Recommended", marker_color=SERIES[2],
+                             hovertemplate="%{y}: recommended covers %{x:.0f} days<extra></extra>"))
+        fig.update_layout(barmode="group", bargap=0.3)
+        fig.update_xaxes(title="Days of demand covered by safety stock", showgrid=True, gridcolor=GRID)
+        fig.update_yaxes(autorange="reversed", showgrid=False)
+        st.plotly_chart(_fig(fig, 60 + 34 * len(ssd)), width="stretch")
+        table(ssd, {**money_cols(cur, "change_value"),
+                    "avg_monthly_use": st.column_config.NumberColumn("Avg monthly use", format="%,.1f"),
+                    "demand_cv": st.column_config.NumberColumn("Demand CV", format="%.2f"),
+                    "lead_time_sd_days": st.column_config.NumberColumn("Delivery delay SD (days)", format="%.1f"),
+                    "days_of_cover_ss": st.column_config.NumberColumn("Days covered", format="%.0f")})
+    else:
+        st.info("Add a consumption_history table to get safety-stock recommendations.")
+
+    st.subheader("Dual-sourcing plan")
+    table(rk.dual_plan, {**money_cols(cur, "spend_12m"),
+                         "risk_score": st.column_config.ProgressColumn("Risk", format="%.0f", min_value=0, max_value=100)})
+
+    st.subheader("Logistics providers")
+    if len(rk.logistics):
+        table(rk.logistics, {**money_cols(cur, "cost_12m", "premium_cost"),
+                             "otd_pct": st.column_config.NumberColumn("OTD %", format="%.0f%%"),
+                             "cost_per_kg": st.column_config.NumberColumn("Cost per kg", format=f"{cur}%.2f")})
+        prem = rk.shipments[rk.shipments["is_premium"]] if len(rk.shipments) else rk.shipments
+        if len(prem):
+            st.caption(f"Premium shipments and their reasons ({len(prem)}, {fmt_money(prem['cost'].sum(), cur)}):")
+            table(prem[["shipment_id", "lsp", "ship_date", "weight_kg", "cost", "reason"]], money_cols(cur, "cost"))
+    else:
+        st.info("Add a shipments table to see logistics-provider performance.")
+
+# ---------------- Cost reduction ----------------
+with tabs[6]:
+    co = r.cost
+    k = co.kpis
+    a = st.columns(4)
+    a[0].metric("Realized savings", fmt_money(k["realized"], cur),
+                None if not k["target"] else f"{k['realized_pct_target']:.0f}% of {fmt_money(k['target'], cur)} target",
+                delta_color="off", **NOARROW)
+    a[1].metric("Expected by now", fmt_money(k["target_to_date"], cur),
+                None if not k["target"] else fmt_money(k["realized"] - k["target_to_date"], cur))
+    a[2].metric("Weighted pipeline", fmt_money(k["weighted_pipeline"], cur), f"{k['projects']} projects", delta_color="off", **NOARROW)
+    a[3].metric("New opportunities found", fmt_money(k["opportunity_value"], cur), f"{len(co.opportunities)} items",
+                delta_color="off", **NOARROW)
+    c1, c2 = st.columns([1, 1.2])
+    with c1:
+        st.subheader("Pipeline by stage")
+        bs = co.by_stage
+        fig = go.Figure()
+        fig.add_trace(go.Bar(x=bs["stage"], y=bs["annual_savings"], name="Annual savings", marker_color=SERIES[0],
+                             hovertemplate="%{x}: " + cur + "%{y:,.0f} a year<extra></extra>"))
+        fig.add_trace(go.Bar(x=bs["stage"], y=bs["weighted_savings"], name="Weighted by stage", marker_color=SERIES[2],
+                             hovertemplate="%{x}: " + cur + "%{y:,.0f} weighted<extra></extra>"))
+        fig.update_layout(barmode="group", bargap=0.3)
+        fig.update_yaxes(tickprefix=cur)
+        st.plotly_chart(_fig(fig, 320), width="stretch")
+        st.caption("Weights: idea 10%, validated 50%, in implementation 80%, realized 100%.")
+    with c2:
+        st.subheader("Realized against target")
+        if k["target"]:
+            fig = go.Figure()
+            fig.add_trace(go.Bar(x=[k["realized"]], y=["Savings"], orientation="h", name="Realized", marker_color=SERIES[2],
+                                 hovertemplate="Realized " + cur + "%{x:,.0f}<extra></extra>"))
+            fig.add_trace(go.Bar(x=[max(k["weighted_pipeline"] - k["realized"], 0)], y=["Savings"], orientation="h",
+                                 name="Weighted pipeline still to come", marker_color=SERIES[0], opacity=0.5,
+                                 hovertemplate="Still to come " + cur + "%{x:,.0f}<extra></extra>"))
+            fig.add_vline(x=k["target"], line=dict(color=INK, dash="dash", width=1),
+                          annotation_text=f"Annual target {fmt_money(k['target'], cur)}")
+            fig.add_vline(x=k["target_to_date"], line=dict(color=INK2, dash="dot", width=1),
+                          annotation_text="Expected by now", annotation_position="bottom right")
+            fig.update_layout(barmode="stack")
+            fig.update_xaxes(tickprefix=cur, showgrid=True, gridcolor=GRID)
+            st.plotly_chart(_fig(fig, 220), width="stretch")
+        else:
+            st.info("Set savings_target in settings to track against a target.")
+    st.subheader("Savings projects")
+    table(co.pipeline, {**money_cols(cur, "baseline_spend", "annual_savings", "weighted_savings", "realized_to_date"),
+                        "savings_pct": st.column_config.NumberColumn("Savings %", format="%.1f%%"),
+                        "weight": st.column_config.NumberColumn("Stage weight", format="%.1f")})
+    st.subheader("Opportunities found by the model")
+    st.caption("Price paid well over standard, cheaper quotes from qualified or qualifying sources, premium freight, and the "
+               f"carrying cost ({s.carrying_cost_pct:.0f}% a year) of the inventory levers. Items already covered by a "
+               "savings project in the same category are left out.")
+    table(co.opportunities, {**money_cols(cur, "annual_value"), "finding": st.column_config.TextColumn(width="large")})
+
+# ---------------- Project financials ----------------
+with tabs[7]:
+    fi = r.financials
+    if fi is None:
+        st.info("Add the optional tables wbs_budget, cost_actuals and billing_milestones (and change_orders, submittals) "
+                "to see project cost, margin, billing and cash. The sample company has them.")
+    else:
+        k = fi.kpis
+        a = st.columns(6)
+        a[0].metric("Contract value", fmt_money(k["contract"], cur), help="As sold plus approved change orders, open projects.")
+        a[1].metric("Margin forecast", f"{k['margin_forecast_pct']:.1f}%", f"{k['margin_forecast_pct'] - k['margin_sold_pct']:+.1f} pts vs sold",
+                    help="(Contract − EAC) / contract. EAC = actual + estimate to complete.")
+        a[2].metric("Unbilled revenue", fmt_money(k["unbilled"], cur), f"{fmt_money(k['billings_in_excess'], cur)} billed in excess",
+                    delta_color="off", **NOARROW, help="Earned (cost-to-cost percent complete × contract) minus billed.")
+        a[3].metric("Receivables overdue", fmt_money(k["ar_overdue"], cur), f"DSO {k['dso']:.0f} days", delta_color="off", **NOARROW)
+        a[4].metric("Invoices not raised", k["due_not_invoiced_count"], fmt_money(k["due_not_invoiced"], cur), delta_color="off", **NOARROW,
+                    help="Billing milestones whose trigger is reached but no invoice is recorded.")
+        a[5].metric("FY billing at risk", fmt_money(k["billing_at_risk_fy"], cur),
+                    f"{fmt_money(k['billing_fy_forecast'], cur)} forecast", delta_color="off", **NOARROW,
+                    help=f"Milestones planned before {s.year_end:%d %b} whose forecast date is now after it.")
+        pj = fi.projects
+        c1, c2 = st.columns([1, 1.15])
+        with c1:
+            st.subheader("Margin: as sold vs forecast")
+            v = pj.sort_values("margin_fade_pts", ascending=True)
+            fig = go.Figure()
+            fig.add_trace(go.Bar(y=v["project_id"], x=v["margin_sold_pct"], orientation="h", name="As sold", marker_color=SERIES[0],
+                                 hovertemplate="%{y} as sold: %{x:.1f}%<extra></extra>"))
+            fig.add_trace(go.Bar(y=v["project_id"], x=v["margin_forecast_pct"], orientation="h", name="Forecast", marker_color=SERIES[1],
+                                 hovertemplate="%{y} forecast: %{x:.1f}%<extra></extra>"))
+            fig.update_layout(barmode="group", bargap=0.25, bargroupgap=0.08)
+            fig.update_xaxes(ticksuffix="%", showgrid=True, gridcolor=GRID)
+            st.plotly_chart(_fig(fig, 430), width="stretch")
+            st.caption(f"Projects at the top have faded most. Alert at {s.margin_fade_alert_pts:.1f} points or more.")
+        with c2:
+            st.subheader("Billing and cash by month")
+            bm = fi.billing_by_month
+            fig = go.Figure()
+            fig.add_trace(go.Bar(x=bm["month"], y=bm["billing_planned"], name="Billing planned", marker_color=SERIES[0], opacity=0.45,
+                                 hovertemplate="%{x|%b %Y} planned: " + cur + "%{y:,.0f}<extra></extra>"))
+            fig.add_trace(go.Bar(x=bm["month"], y=bm["billing_forecast"], name="Billing forecast", marker_color=SERIES[0],
+                                 hovertemplate="%{x|%b %Y} forecast: " + cur + "%{y:,.0f}<extra></extra>"))
+            fig.add_trace(go.Scatter(x=bm["month"], y=bm["cash_forecast"], name="Cash in (forecast)", mode="lines+markers",
+                                     line=dict(color=SERIES[2], width=2), marker=dict(size=8),
+                                     hovertemplate="%{x|%b %Y} cash: " + cur + "%{y:,.0f}<extra></extra>"))
+            fig.add_vline(x=pd.Timestamp(s.year_end), line=dict(color=INK2, dash="dash", width=1))
+            fig.add_annotation(x=pd.Timestamp(s.year_end), y=1, yref="paper", text="Fiscal year end", showarrow=False,
+                               xanchor="left", font=dict(color=INK2, size=11))
+            fig.update_layout(barmode="group", bargap=0.3)
+            fig.update_yaxes(tickprefix=cur)
+            st.plotly_chart(_fig(fig, 300), width="stretch")
+            st.caption(f"Cash follows the invoice by the payment terms ({s.payment_terms_days} days); overdue invoices are "
+                       "assumed to be paid next month.")
+            st.subheader("Receivables aging")
+            ar = fi.receivables
+            buckets = ["Not due", "1-30", "31-60", "61-90", "90+"]
+            ag = ar.groupby("bucket")["billed"].sum().reindex(buckets).fillna(0) if len(ar) else pd.Series(0.0, index=buckets)
+            st.dataframe(pd.DataFrame([ag.values], columns=buckets), hide_index=True, width="stretch",
+                         column_config={b: st.column_config.NumberColumn(b if b == "Not due" else f"{b} days", format=f"{cur}%,.0f")
+                                        for b in buckets})
+        st.subheader("Portfolio")
+        cols = ["project_id", "customer", "ctb_status", "contract", "pending_changes", "budget", "actual", "committed", "etc", "eac",
+                "margin_sold_pct", "margin_forecast_pct", "margin_fade_pts", "poc_pct", "earned", "billed", "unbilled",
+                "billings_in_excess", "ar_open", "ar_overdue", "billing_at_risk_fy"]
+        pct = {c: st.column_config.NumberColumn(c.replace("_pct", "").replace("_", " ").capitalize() + " %", format="%.1f%%")
+               for c in ("margin_sold_pct", "margin_forecast_pct", "poc_pct")}
+        table(pj[cols], {**money_cols(cur, "contract", "pending_changes", "budget", "actual", "committed", "etc", "eac", "earned",
+                                      "billed", "unbilled", "billings_in_excess", "ar_open", "ar_overdue", "billing_at_risk_fy"),
+                         **pct, "ctb_status": st.column_config.TextColumn("Material status"),
+                         "etc": st.column_config.NumberColumn("ETC", format=f"{cur}%,.0f"),
+                         "eac": st.column_config.NumberColumn("EAC", format=f"{cur}%,.0f"),
+                         "margin_fade_pts": st.column_config.NumberColumn("Fade (pts)", format="%+.1f")})
+        st.subheader("Project drilldown")
+        flagged = pj.sort_values(["due_not_invoiced", "margin_fade_pts"], ascending=False)["project_id"].iloc[0]
+        plist = pj["project_id"].tolist()
+        pid = st.selectbox("Project", plist, index=plist.index(flagged),
+                           format_func=lambda x: f"{x} {pj.set_index('project_id').at[x, 'customer']}", key="fin_project")
+        p = pj.set_index("project_id").loc[pid]
+        b = st.columns(5)
+        b[0].metric("Contract", fmt_money(p["contract"], cur), f"{fmt_money(p['pending_changes'], cur)} pending" if p["pending_changes"] else None,
+                    delta_color="off", **NOARROW)
+        b[1].metric("EAC", fmt_money(p["eac"], cur), f"{fmt_money(-p['cost_variance'], cur)} vs budget" if p["cost_variance"] else None,
+                    delta_color="inverse")
+        b[2].metric("Margin forecast", f"{p['margin_forecast_pct']:.1f}%", f"{-p['margin_fade_pts']:+.1f} pts vs sold")
+        b[3].metric("Percent complete", f"{p['poc_pct']:.0f}%")
+        b[4].metric("Unbilled", fmt_money(p["unbilled"], cur))
+        d1, d2 = st.columns([1, 1.1])
+        with d1:
+            st.markdown("**Cost to complete by element**")
+            table(fi.wbs[fi.wbs["project_id"] == pid].drop(columns="project_id"),
+                  {**money_cols(cur, "as_sold", "budget", "actual", "committed"),
+                   "etc": st.column_config.NumberColumn("ETC", format=f"{cur}%,.0f"),
+                   "eac": st.column_config.NumberColumn("EAC", format=f"{cur}%,.0f"),
+                   "variance": st.column_config.NumberColumn("Variance (budget − EAC)", format=f"{cur}%,.0f")})
+            st.caption("Material committed = open POs pegged to this project at PO price. Material ETC = stock still to issue "
+                       "plus shortages at standard cost. Other elements: budget remaining unless an ETC override is entered.")
+        with d2:
+            st.markdown("**Billing milestones**")
+            ms = fi.milestones[fi.milestones["project_id"] == pid]
+            table(ms[["milestone_id", "name", "trigger", "pct", "amount", "planned_date", "forecast_date", "slip_days", "status",
+                      "invoice_no", "paid_date"]],
+                  {**money_cols(cur, "amount"), "pct": st.column_config.NumberColumn("%", format="%.0f%%"),
+                   "milestone_id": st.column_config.TextColumn("#"),
+                   "planned_date": st.column_config.DateColumn("Planned"), "forecast_date": st.column_config.DateColumn("Forecast"),
+                   "paid_date": st.column_config.DateColumn("Paid")})
+        e1, e2 = st.columns(2)
+        with e1:
+            st.markdown("**Change orders**")
+            co = fi.change_orders[fi.change_orders["project_id"] == pid]
+            if len(co):
+                table(co.drop(columns=["project_id", "customer"]), money_cols(cur, "price_change", "cost_change"))
+            else:
+                st.caption("No change orders.")
+        with e2:
+            st.markdown("**Submittals**")
+            sb = fi.submittals[fi.submittals["project_id"] == pid]
+            if len(sb):
+                table(sb.drop(columns=["project_id"]))
+            else:
+                st.caption("No submittals.")
+        st.download_button(f"Project review PDF: {pid}", project_review_pdf(r, [pid]), f"project_review_{pid}.pdf", "application/pdf",
+                           help="Portfolio page plus this project's page.")
+        st.subheader("Change orders and submittals, all projects")
+        g1, g2 = st.columns(2)
+        with g1:
+            table(fi.change_orders, money_cols(cur, "price_change", "cost_change"))
+        with g2:
+            sb = fi.submittals
+            table(sb[sb["overdue"] | sb["blocked"] | sb["returned"].isna()])
+            st.caption("Open submittals. A submittal that holds a milestone (M2) delays that invoice; one that holds 'release' "
+                       "delays the supplier's production release.")
+
+# ---------------- Team & KPIs ----------------
+with tabs[8]:
+    tm = r.team
+    st.subheader("Department KPIs")
+    dep = tm.department
+    dep_t = dep[dep["target"].notna()]
+    cols = st.columns(4)
+    for i, x in enumerate(dep_t.itertuples()):
+        unit = x.unit
+        def _f(v, unit=unit):
+            if unit == "$":
+                return fmt_money(v, cur)
+            if unit == "x":
+                return f"{v:.1f}"
+            if unit == "%":
+                return f"{v:.1f}%" if abs(v) < 10 else f"{v:.0f}%"
+            return f"{v:,.0f}"
+        val, tgt = _f(x.value), _f(x.target)
+        icon = "✅" if x.met else "🔴"
+        cols[i % 4].metric(f"{icon} {x.label}", val, f"target {'≥' if x.better == 'higher' else '≤'} {tgt}", delta_color="off", **NOARROW)
+    st.subheader("Trend")
+    tr = tm.trend
+    opts = sorted(tr["kpi"].unique(), key=lambda k: list(KPI).index(k) if k in KPI else 99)
+    if opts:
+        pick = st.selectbox("KPI", opts, format_func=lambda k: KPI.get(k, (k,))[0])
+        x = tr[tr["kpi"] == pick]
+        fig = go.Figure(go.Scatter(x=x["month"], y=x["value"], mode="lines+markers", line=dict(color=SERIES[0], width=2),
+                                   marker=dict(size=8), name="Actual",
+                                   hovertemplate="%{x|%b %Y}: %{y:,.1f}<extra></extra>"))
+        if x["target"].notna().any():
+            fig.add_hline(y=float(x["target"].dropna().iloc[0]), line=dict(color=INK, dash="dash", width=1),
+                          annotation_text="Target")
+        st.plotly_chart(_fig(fig, 300, showlegend=False), width="stretch")
+        st.caption("Closed months from kpi_history; the last point is this month, calculated live.")
+    st.subheader("Team scorecards")
+    st.caption("Each person's KPIs are calculated for their own scope: buyers for their parts and suppliers, planners for "
+               "their product family, inventory control for the whole stock. Targets come from the objectives table.")
+    ppl = tm.people
+    table(ppl, {"score_pct": st.column_config.ProgressColumn("KPIs met", format="%.0f%%", min_value=0, max_value=100)})
+    if len(ppl):
+        who = st.selectbox("Scorecard for", ppl["person_id"].tolist(),
+                           format_func=lambda p: f"{ppl.set_index('person_id').at[p, 'name']} ({ppl.set_index('person_id').at[p, 'role']})")
+        scx = tm.scorecards[tm.scorecards["person_id"] == who].copy()
+        scx["status"] = [("✅ met" if m else "🔴 missed") if m is not None else "no target" for m in scx["met"]]
+        table(scx[["label", "unit", "value", "target", "better", "status"]],
+              {"value": st.column_config.NumberColumn("Value", format="%,.1f"),
+               "target": st.column_config.NumberColumn("Target", format="%,.1f")})
+        mine = r.alerts[r.alerts["alert_id"].isin(tm.alert_owner[tm.alert_owner == who].index)]
+        st.caption(f"Open alerts for this person: {len(mine)}")
+        table(mine[["alert_id", "severity", "area", "ref", "message", "action"]], height=260,
+              config={"message": st.column_config.TextColumn(width="large")})
+
+# ---------------- Meetings & actions ----------------
+with tabs[9]:
+    ag = r.meetings.agenda
+    st.subheader("This week's meeting agenda")
+    st.caption("Built from the model for each stakeholder group. Use one section per meeting, or run them in order in a "
+               "single cross-functional session.")
+    groups = [g for g in STAKEHOLDERS if g in set(ag["stakeholder"])]
+    pick = st.multiselect("Stakeholders", groups, default=groups)
+    for g in pick:
+        x = ag[ag["stakeholder"] == g]
+        with st.expander(f"{g} ({len(x)} items)", expanded=g in ("Production", "Finance")):
+            for it in x.itertuples():
+                st.markdown(f"**{it.topic}**: {it.detail}  \n<span style='color:{INK2}'>Decision or ask: {it.decision_needed}</span>",
+                            unsafe_allow_html=True)
+    m1, m2 = st.columns(2)
+    m1.download_button("Meeting pack (PDF)", meeting_pack_pdf(r, pick or groups), f"meeting_pack_{s.as_of_date:%Y%m%d}.pdf",
+                       "application/pdf", width="stretch", help="Agenda by stakeholder plus the open action log.")
+    md = "\n".join([f"# Materials meeting {s.as_of_date:%d %b %Y}"] + [
+        f"\n## {g}\n" + "\n".join(f"- **{i.topic}**: {i.detail}. *Ask:* {i.decision_needed}" for i in ag[ag["stakeholder"] == g].itertuples())
+        for g in (pick or groups)])
+    m2.download_button("Agenda as text (Markdown)", md.encode(), "agenda.md", width="stretch",
+                       help="Paste into an e-mail or Teams post.")
+
+    st.subheader("Action log")
+    st.caption("Edit in place: change status to Done, move a due date, add a row. Edits last for this session; "
+               "download the log (or the input workbook) to keep them, and upload it next week. "
+               "Add alerts to the log from the Alerts tab.")
+    act = r.meetings.actions
+    a = st.columns(3)
+    a[0].metric("Open actions", r.meetings.kpis["open"])
+    a[1].metric("Overdue", r.meetings.kpis["overdue"])
+    a[2].metric("Done", r.meetings.kpis["done"])
+    team_ids = data.team["person_id"].tolist() if len(data.team) else []
+    tnames = dict(zip(data.team["person_id"], data.team["name"], strict=False)) if len(data.team) else {}
+    edit_cols = ["action_id", "opened", "stakeholder", "owner", "ref", "action", "due", "status", "closed", "notes"]
+    base_log = st.session_state["actions_df"].copy()
+    for c in ("opened", "due", "closed"):
+        base_log[c] = pd.to_datetime(base_log[c], errors="coerce")
+    flag = act.set_index("action_id")["overdue"] if len(act) else pd.Series(dtype=bool)
+    base_log.insert(0, "overdue", base_log["action_id"].map(flag).fillna(False).astype(bool))
+    edited = st.data_editor(
+        base_log[["overdue"] + edit_cols], hide_index=True, width="stretch", num_rows="dynamic", key="action_editor",
+        column_config={
+            "overdue": st.column_config.CheckboxColumn("Overdue", disabled=True),
+            "stakeholder": st.column_config.SelectboxColumn("Stakeholder", options=STAKEHOLDERS),
+            "owner": st.column_config.SelectboxColumn("Owner", options=team_ids or None,
+                                                      help=", ".join(f"{k} {v}" for k, v in tnames.items())),
+            "status": st.column_config.SelectboxColumn("Status", options=["Open", "In progress", "Done"]),
+            "opened": st.column_config.DateColumn("Opened"), "due": st.column_config.DateColumn("Due"),
+            "closed": st.column_config.DateColumn("Closed"),
+            "action": st.column_config.TextColumn("Action", width="large"),
+            "action_id": st.column_config.TextColumn("Action id"), "ref": st.column_config.TextColumn("Ref"),
+            "notes": st.column_config.TextColumn("Notes")})
+    b1, b2, b3 = st.columns(3)
+    if b1.button("Save edits", width="stretch", help="Apply the edits above to the model (overdue flags, scorecards, alerts)."):
+        new_log = edited.drop(columns=["overdue"]).copy()
+        done_now = (new_log["status"] == "Done") & new_log["closed"].isna()
+        new_log.loc[done_now, "closed"] = pd.Timestamp(s.as_of_date)
+        st.session_state["actions_df"] = new_log
+        st.rerun()
+    b2.download_button("Download action log (CSV)", st.session_state["actions_df"].to_csv(index=False, date_format="%Y-%m-%d").encode(),
+                       "actions.csv", "text/csv", width="stretch")
+    b3.download_button("Download input workbook with the log", workbook_bytes(data), "flowline_input.xlsx", width="stretch")
+
+# ---------------- Alerts ----------------
+with tabs[10]:
+    al = r.alerts
+    f = st.columns(3)
+    sev = f[0].multiselect("Severity", ["Critical", "Warning", "Info"], default=["Critical", "Warning"])
+    area = f[1].multiselect("Area", sorted(al["area"].unique()))
+    owner = f[2].multiselect("Owner", sorted(al["owner"].unique()))
+    v = al[al["severity"].isin(sev)] if sev else al
+    v = v[v["area"].isin(area)] if area else v
+    v = v[v["owner"].isin(owner)] if owner else v
+    v = v.assign(severity=[f"{SEV_ICON[x]} {x}" for x in v["severity"]])
+    owner_map = r.team.alert_owner if r.team is not None else pd.Series(dtype=object)
+    tnames = dict(zip(data.team["person_id"], data.team["name"], strict=False)) if len(data.team) else {}
+    v = v.assign(person=v["alert_id"].map(owner_map).map(tnames).fillna(""))
+    v.insert(0, "add", False)
+    picked = st.data_editor(v, hide_index=True, width="stretch", height=560, key="alert_editor",
+                            disabled=[c for c in v.columns if c != "add"],
+                            column_config={"add": st.column_config.CheckboxColumn("Add to log"),
+                                           "message": st.column_config.TextColumn(width="large"),
+                                           "action": st.column_config.TextColumn(width="medium"),
+                                           "person": st.column_config.TextColumn("Person"), **money_cols(cur, "value")})
+    a1, a2 = st.columns(2)
+    if a1.button("Add ticked alerts to the action log", width="stretch"):
+        ids = picked.loc[picked["add"], "alert_id"]
+        sel = al[al["alert_id"].isin(ids)]
+        if len(sel):
+            st.session_state["actions_df"] = alerts_to_actions(sel, st.session_state["actions_df"], s.as_of_date, owner_map)
+            st.success(f"Added {len(sel)} action(s). See Meetings & actions.")
+            st.rerun()
+    a2.download_button("Download alerts (CSV)", al.to_csv(index=False).encode(), "alerts.csv", "text/csv", width="stretch")
+
+# ---------------- Data and exports ----------------
+with tabs[11]:
+    st.subheader("Exports")
+    stamp = f"{s.as_of_date:%Y%m%d}"
+    e = st.columns(5)
+    e[0].download_button("Excel report", excel_report(r), f"materials_report_{stamp}.xlsx", width="stretch",
+                         help="Formatted workbook: summary, alerts and every view.")
+    e[1].download_button("PDF review pack", pdf_report(r), f"materials_review_{stamp}.pdf", "application/pdf",
+                         width="stretch", help="The weekly pack: clear to build, inventory, suppliers and CMs, supply risk, value stream and the action list.")
+    e[2].download_button("Power Query workbook", powerquery_workbook(r), f"flowline_pq_{stamp}.xlsx", width="stretch",
+                         help="Every output as a named Excel Table (tbl_alerts, tbl_projects …) for Power Query or Power BI.")
+    e[3].download_button("Input data workbook", workbook_bytes(data), "flowline_input.xlsx", width="stretch",
+                         help="The input tables, in the upload format. Start from the sample and replace the rows.")
+    if r.financials is not None:
+        e[4].download_button("Project review pack", project_review_pdf(r), f"project_review_{stamp}.pdf", "application/pdf",
+                             width="stretch", help="Portfolio page plus a page per project: cost to complete, margin, billing, changes.")
+    st.subheader("Data check")
+    if issues:
+        for i in issues:
+            (st.error if i.severity == "error" else st.warning)(f"**{i.table}**: {i.message}")
+    else:
+        st.success("No data problems found." if src != "Sample company" else "Sample data loaded. Upload your own in the sidebar.")
+    st.subheader("Input tables")
+    tbls = data.tables()
+    t = st.selectbox("Table", list(tbls), format_func=lambda x: f"{x} ({len(tbls[x])} rows)")
+    table(tbls[t])
+
+# ---------------- Value stream ----------------
+with tabs[12]:
+    v = r.vsm
+    if v is None:
+        st.info("Add the optional table process_steps (one product family's route: process steps and the stock points "
+                "between them) to see a value stream map. The sample company has one for switchgear.")
+    else:
+        k = v.kpis
+        st.markdown(f"**Where our inventory days come from, and what better flow is worth.** This map is for **one product "
+                    f"family, {v.family}**, which follows a fairly standard route. Other families and one-off projects "
+                    "are not on it.")
+        a = st.columns(5)
+        a[0].metric("Lead time", f"{k['lead_time_days']:,.0f} days", help="Days of stock in the triangles plus process days.")
+        a[1].metric("Waiting", f"{k['wait_days']:,.0f} days", help="Family inventory / family COGS per day.")
+        a[2].metric("Process", f"{k['process_days']:,.1f} days", help="(C/T + C/O) / uptime, in working days.")
+        a[3].metric("Value-added", f"{k['va_pct']:,.0f}%", help="Process days / lead time.")
+        a[4].metric(f"Takt ({v.family})", f"{v.takt_hours:,.0f} h per unit",
+                    f"{v.demand_units:,.0f} units a year", delta_color="off", **NOARROW,
+                    help=f"{s.vsm_working_days} days x {s.vsm_hours_per_day:g} h / units a year (customer dates in the "
+                         "next six months, doubled).")
+        map_slot = st.container()
+        st.caption(f"Each step stands on its own tile. Piles of crates (one per day) are the {v.family} share of today's inventory (raw and semi-finished stock split by where the parts "
+                   f"are used; WIP and finished goods from the family's projects), in days of family COGS "
+                   f"({fmt_money(v.daily_cogs, cur)} a day). Dashed blue lines are information flow. "
+                   f"Data cards: C/T and C/O in hours per unit; 'vs takt' = (C/T + C/O) / uptime / takt. Lineups move through at the "
+                   "customer's pace; press Future state on the map to see your targets below.")
+        if k.get("biggest_wait"):
+            st.warning(f"**Biggest wait: {k['biggest_wait']}**, {k['biggest_wait_days']:,.0f} of {k['lead_time_days']:,.0f} "
+                       f"days ({fmt_money(k['biggest_wait_value'], cur)}). Start improving flow here.", icon="🟠")
+
+        st.subheader("Future state")
+        st.caption("Set target days for each stock point and target changeover times. Blank keeps today's value. "
+                   "Lead time and working capital update below.")
+        cur_st = v.steps
+        f1, f2 = st.columns(2)
+        with f1:
+            stock = cur_st[cur_st["kind"] == "Stock"][["name", "days", "target_days"]].reset_index(drop=True)
+            stock_ed = st.data_editor(stock, hide_index=True, width="stretch", key="vsm_stock", disabled=["name", "days"],
+                                      column_config={"name": "Stock point",
+                                                     "days": st.column_config.NumberColumn("Today (days)", format="%.1f"),
+                                                     "target_days": st.column_config.NumberColumn("Target (days)", min_value=0.0,
+                                                                                                  format="%.1f")})
+        with f2:
+            proc = cur_st[cur_st["kind"] == "Process"][["name", "changeover_hours", "target_changeover_hours"]].reset_index(drop=True)
+            proc_ed = st.data_editor(proc, hide_index=True, width="stretch", key="vsm_co", disabled=["name", "changeover_hours"],
+                                     column_config={"name": "Process step",
+                                                    "changeover_hours": st.column_config.NumberColumn("C/O today (h)", format="%.1f"),
+                                                    "target_changeover_hours": st.column_config.NumberColumn(
+                                                        "Target C/O (h)", min_value=0.0, format="%.1f")})
+        import copy as _copy
+        fv = future_state(_copy.deepcopy(v),
+                          {n: (t if pd.notna(t) else d) for n, d, t in zip(stock_ed["name"], stock_ed["days"],
+                                                                           stock_ed["target_days"], strict=True)},
+                          {n: (t if pd.notna(t) else c) for n, c, t in zip(proc_ed["name"], proc_ed["changeover_hours"],
+                                                                           proc_ed["target_changeover_hours"], strict=True)})
+        fk = fv.future_kpis
+        b = st.columns(4)
+        b[0].metric("Future lead time", f"{fk['lead_time_days']:,.0f} days", f"{fk['lead_time_change_days']:+,.0f} days",
+                    delta_color="inverse")
+        b[1].metric("Working capital freed", fmt_money(fk["freed_value"], cur),
+                    help="(Days today − target days) x family COGS per day, summed over the stock points.")
+        b[2].metric("Value-added", f"{fk['va_pct']:,.0f}%", f"{fk['va_pct'] - k['va_pct']:+,.0f} pts")
+        b[3].metric("Inventory days left", f"{fk['wait_days']:,.0f} days")
+        ff = fv.future
+        lines = []
+        for x, c in zip(ff.itertuples(), cur_st.itertuples(), strict=True):
+            if x.kind == "Stock" and abs(x.target_days - c.days) >= 0.05:
+                lines.append(f"- **{x.name}**: {'cut' if x.target_days < c.days else 'raise'} cover from {c.days:,.1f} to "
+                             f"{x.target_days:,.1f} days → {'frees' if x.freed_value >= 0 else 'adds'} "
+                             f"{fmt_money(abs(x.freed_value), cur)}, lead time {x.lead_time_change_days:+,.1f} days")
+            elif x.kind == "Process" and abs(x.target_changeover_hours - c.changeover_hours) >= 0.05:
+                lines.append(f"- **{x.name}**: changeover from {c.changeover_hours:,.1f} to {x.target_changeover_hours:,.1f} h → "
+                             f"lead time {x.lead_time_change_days:+,.2f} days, load vs takt {c.load_pct:,.0f}% → {x.load_pct:,.0f}%")
+        if lines:
+            st.markdown("\n".join(lines))
+        with map_slot:
+            import streamlit.components.v1 as _components
+            html_iso = vsm_iso_html(r, v=fv)
+            _components.html(html_iso, height=760)   # the map scales itself to fit this frame
+        st.download_button("Download the map (HTML)", html_iso, f"value_stream_{v.family.lower()}.html", "text/html",
+                           help="One file that opens in any browser, offline. Good for a presentation.")
+        st.caption("Shorter changeovers mostly free capacity (lower load vs takt); the lead time and the cash are in the "
+                   "stock points. A target only counts once the change behind it (buying closer to need, kitting later, "
+                   "shipping on completion) is in place.")
+        st.subheader("Steps")
+        g1, g2 = st.columns([1, 1.6])
+        with g1:
+            table(cur_st[cur_st["kind"] == "Stock"][["seq", "name", "stock_type", "value", "days"]],
+                  {**money_cols(cur, "value"), "days": st.column_config.NumberColumn("Days", format="%.1f")})
+        with g2:
+            table(cur_st[cur_st["kind"] == "Process"][["seq", "name", "cycle_time_hours", "changeover_hours", "uptime_pct",
+                                                       "operators", "effective_ct_hours", "load_pct", "process_days"]],
+                  {"cycle_time_hours": st.column_config.NumberColumn("C/T (h)", format="%.0f"),
+                   "changeover_hours": st.column_config.NumberColumn("C/O (h)", format="%.1f"),
+                   "uptime_pct": st.column_config.NumberColumn("Uptime", format="%.0f%%"),
+                   "effective_ct_hours": st.column_config.NumberColumn("Effective C/T (h)", format="%.1f"),
+                   "load_pct": st.column_config.NumberColumn("vs takt", format="%.0f%%"),
+                   "process_days": st.column_config.NumberColumn("Process days", format="%.2f")})

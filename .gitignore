@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.streamlit/secrets.toml
+output/
+*.log
+.DS_Store
+~$*.xlsx
+site/
+samples/output/
+.sensitive-words

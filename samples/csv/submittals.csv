@@ -1,0 +1,18 @@
+submittal_id,project_id,direction,document,party,submitted,due,returned,status,holds
+S-2601-GA,P-2601,Customer,General arrangement and single-line drawings,Varnley Municipal Utility,2026-07-11,2026-08-01,2026-07-28,Approved,M2
+S-2602-GA,P-2602,Customer,General arrangement and single-line drawings,Quillfield Data Campus,2026-07-28,2026-08-18,2026-08-14,Approved,M2
+S-2603-GA,P-2603,Customer,General arrangement and single-line drawings,Orrindale Wind LP,2026-07-30,2026-08-20,2026-08-16,Approved,M2
+S-2604-GA,P-2604,Customer,General arrangement and single-line drawings,Tessmoor Water Authority,2026-08-11,2026-09-01,2026-08-28,Approved,M2
+S-2605-GA,P-2605,Customer,General arrangement and single-line drawings,Brackenhollow Mine,2026-08-17,2026-09-07,2026-09-03,Approved,M2
+S-2606-GA,P-2606,Customer,General arrangement and single-line drawings,Lumrey Solar 2,2026-08-25,2026-09-15,2026-09-11,Approved,M2
+S-2607-GA,P-2607,Customer,General arrangement and single-line drawings,Elmbrae General Hospital,2026-09-02,2026-09-23,2026-09-19,Approved,M2
+S-2608-GA,P-2608,Customer,General arrangement and single-line drawings,Corrowick Transit,2026-09-09,2026-09-30,2026-09-26,Approved,M2
+S-2609-GA,P-2609,Customer,General arrangement and single-line drawings,Danthorpe Logistics Park,2026-10-24,2026-11-14,,Submitted,M2
+S-2610-GA,P-2610,Customer,General arrangement and single-line drawings,Fenwold Co-op Power,2026-10-06,2026-10-27,2026-10-23,Approved,M2
+S-2611-GA,P-2611,Customer,General arrangement and single-line drawings,Quillfield Data Campus Phase 2,2026-10-14,2026-11-04,2026-11-01,Resubmit,M2
+S-2612-GA,P-2612,Customer,General arrangement and single-line drawings,Varnley Municipal Utility,2026-11-08,2026-11-29,,Submitted,M2
+S-2613-GA,P-2613,Customer,General arrangement and single-line drawings,Orrindale Wind LP Phase 2,,2026-12-24,,Draft,M2
+S-2614-GA,P-2614,Customer,General arrangement and single-line drawings,Brackenhollow Mine expansion,,2027-01-13,,Draft,M2
+S-2605-VCB,P-2605,Supplier,Breaker type-test report,Veltrano Breakers,2026-10-09,2026-10-24,2026-10-21,Approved,
+S-2606-OLTC,P-2606,Supplier,Tap changer outline drawing,Ellerby Tap Changers,2026-09-24,2026-10-09,2026-10-07,Approved,
+S-2613-OLTC,P-2613,Supplier,Tap changer datasheet,Ellerby Tap Changers,,2026-11-18,,Draft,release

@@ -1,0 +1,10 @@
+person_id,name,role,scope
+P00,Materials manager,Materials manager,All
+P01,Maya,Buyer,B1 Electrical
+P02,Daniel,Buyer,B2 Fabrication
+P03,Sofia,Buyer,B3 Raw materials
+P04,Arjun,Buyer,B4 Transformer parts
+P05,Leah,Planner,Switchgear
+P06,Tomas,Planner,Transformers
+P07,Grace,Inventory analyst,All
+P08,Noah,Project controller,All

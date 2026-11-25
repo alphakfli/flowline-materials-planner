@@ -1,0 +1,6 @@
+risk_id,risk,category,likelihood,impact,mitigation,owner,status,due
+R-01,Tariff increase on imported vacuum breakers,Commercial,3.0,4.0,Qualify Marlowe (North America) as second source,P01,Mitigating,2027-03-23
+R-02,Copper price spike,Commercial,4.0,3.0,Index clause and 3-month forward cover,P03,Mitigating,2026-11-30
+R-03,Winter storms disrupt LTL deliveries,Logistics,2.0,3.0,Pre-build buffer of fluid and hardware; backup carrier,P03,Open,2026-12-23
+R-04,Welder shortage at Ironvale Fabrication,Contract manufacturer,4.0,4.0,Weekly capacity call; qualify second fabricator for enclosures,P02,Open,2027-01-07
+R-05,Ester fluid supplier allocation,Supply,2.0,2.0,Annual contract with volume commitment,P03,Closed,2026-11-03

@@ -1,0 +1,11 @@
+action_id,opened,stakeholder,owner,ref,action,due,status,closed,notes
+A-101,2026-10-26,Production,P06,P-2604,Confirm core and radiator deliveries for P-2604,2026-11-25,Open,,
+A-102,2026-10-19,Engineering,P07,RLY-LEGACY,Decide disposition of superseded relay stock (14 pcs),2026-11-13,Open,,
+A-103,2026-11-16,Finance,P00,,Send year-end push-out lists to each buyer,2026-11-27,Open,,
+A-104,2026-11-16,Contracts,P06,P-2606,Warn Lumrey Solar of the risk to the 9 Jan date,2026-11-20,Open,,
+A-105,2026-11-02,Suppliers and CMs,P04,OLTC-75,Ellerby recovery plan for tap-changer deliveries,2026-11-16,Done,2026-11-18,
+A-106,2026-11-09,Suppliers and CMs,P02,CM200,Send updated forecast to Ironvale including P-2611,2026-11-20,Open,,
+A-107,2026-10-12,Engineering,P01,VCB-15-1200,Book the type test for the Marlowe 1200 A breaker,2026-12-15,Open,,
+A-108,2026-11-16,Production,P05,P-2605,Kit P-2605 for the 5 Dec start,2026-12-01,Open,,
+A-109,2026-10-05,Finance,P07,,Q3 excess and obsolete reserve review,2026-10-30,Done,2026-10-29,
+A-110,2026-11-09,Materials team,P03,CU-MAG,Copper index clause in the new magnet-wire contract,2026-11-30,Open,,

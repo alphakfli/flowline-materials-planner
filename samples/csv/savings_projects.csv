@@ -1,0 +1,10 @@
+project_id,title,category,item_id,supplier_id,owner,stage,baseline_spend,annual_savings,start_date,target_date,realized_to_date
+SP-01,Shift current-transformer share to Kestavo,Alternative source,CT-600,S121,P01,In implementation,120000.0,14000.0,2026-06-26,2027-01-02,6000.0
+SP-02,Magnet-wire price index renegotiation,Negotiation,CU-MAG,S150,P03,Realized,820000.0,64000.0,2026-01-27,2026-07-26,58000.0
+SP-03,Second source for 1200 A vacuum breakers,Alternative source,VCB-15-1200,S101,P01,Validated,1100000.0,66000.0,2026-08-25,2027-04-22,0.0
+SP-04,Enclosure VA/VE: standard 36 in design,VA/VE,ENC-SWG-36,CM200,P02,Idea,240000.0,24000.0,2026-11-03,2027-07-21,0.0
+SP-05,Hardware kit consolidation,Consolidation,HW-KIT-SWG,S180,P03,Realized,160000.0,21000.0,2026-03-08,2026-06-26,19000.0
+SP-06,Returnable packaging with Ironvale,Packaging,,CM200,P02,In implementation,90000.0,12000.0,2026-07-26,2026-11-13,3000.0
+SP-07,Ester fluid annual contract,Negotiation,FLUID-ESTER,S160,P03,Realized,450000.0,38000.0,2026-02-16,2026-06-06,34000.0
+SP-08,Inbound freight lane tender,Logistics,,,P03,Validated,260000.0,22000.0,2026-09-24,2027-01-22,0.0
+SP-09,Relay framework agreement,Negotiation,RLY-FDR,S110,P01,Realized,600000.0,72000.0,2025-12-28,2026-05-07,66000.0

@@ -1,0 +1,25 @@
+item_id,supplier_id,status,share_pct,target_date,notes,quoted_price
+VCB-15-1200,S100,Approved,100.0,,,0.0
+VCB-15-1200,S101,In qualification,0.0,2027-03-23,First article passed; type test booked,26300.0
+VCB-15-2000,S100,Approved,100.0,,,0.0
+VCB-15-2000,S101,Candidate,0.0,2027-07-21,Quote received,0.0
+CT-600,S120,Approved,70.0,,,0.0
+CT-600,S121,Approved,30.0,,,0.0
+CT-2000,S120,Approved,70.0,,,0.0
+CT-2000,S121,Approved,30.0,,,0.0
+CU-MAG,S150,Approved,60.0,,Copper index pricing,0.0
+CU-MAG,S151,Approved,40.0,,,0.0
+HW-KIT-SWG,S180,Approved,80.0,,,0.0
+HW-KIT-SWG,S181,Approved,20.0,,,0.0
+GSK-KIT,S180,Approved,50.0,,,0.0
+GSK-KIT,S181,Approved,50.0,,,0.0
+CORE-2500,CM230,Approved,100.0,,,0.0
+CORE-2500,CM240,In qualification,0.0,2027-02-21,Pilot build of two cores in January,17600.0
+CORE-7500,CM230,Approved,100.0,,,0.0
+OLTC-75,S140,Approved,100.0,,,0.0
+OLTC-75,S101,Candidate,0.0,2027-09-19,Distributor for a second tap-changer maker,0.0
+BUSH-LV,S130,Approved,100.0,,,0.0
+BUSH-LV,S121,In qualification,0.0,2027-01-22,Samples under test,395.0
+ENC-SWG-36,CM200,Approved,100.0,,,0.0
+TANK-2500,CM200,Approved,100.0,,,0.0
+TANK-7500,CM200,Approved,100.0,,,0.0

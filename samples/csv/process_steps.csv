@@ -1,0 +1,9 @@
+seq,kind,name,stock_type,cycle_time_hours,changeover_hours,uptime_pct,operators,target_days,target_changeover_hours,product_family
+10.0,Stock,Raw material,Raw materials,0.0,0.0,0.0,0.0,25.0,0.0,Switchgear
+20.0,Process,Kitting,,8.0,1.0,98.0,2.0,0.0,0.0,Switchgear
+30.0,Stock,Work in process,WIP,0.0,0.0,0.0,0.0,30.0,0.0,Switchgear
+40.0,Process,Fabrication,,72.0,6.0,88.0,3.0,0.0,2.0,Switchgear
+50.0,Stock,Sections waiting,Semi-finished,0.0,0.0,0.0,0.0,0.0,0.0,Switchgear
+60.0,Process,Assembly,,112.0,4.0,95.0,5.0,0.0,0.0,Switchgear
+70.0,Process,Test & ship,,32.0,3.0,90.0,2.0,0.0,0.0,Switchgear
+80.0,Stock,Finished goods,Finished goods,0.0,0.0,0.0,0.0,20.0,0.0,Switchgear

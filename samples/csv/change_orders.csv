@@ -1,0 +1,7 @@
+co_id,project_id,description,price_change,cost_change,cost_element,status,submitted,decided
+CO-2602-01,P-2602,Add one feeder section,95000.0,58000.0,Material,Approved,2026-09-14,2026-09-29
+CO-2604-01,P-2604,Factory witness test,8000.0,5000.0,Engineering,Approved,2026-10-14,2026-10-22
+CO-2606-01,P-2606,Change HV bushing specification,6500.0,4000.0,Material,Approved,2026-10-24,2026-11-03
+CO-2605-01,P-2605,Arc-flash relay upgrade,22000.0,14000.0,Material,Pending,2026-11-11,
+CO-2611-01,P-2611,Second incomer and tie breaker,140000.0,88000.0,Material,Pending,2026-10-13,
+CO-2609-01,P-2609,Extended warranty to 5 years,12000.0,0.0,Contingency,Rejected,2026-10-04,2026-10-19
