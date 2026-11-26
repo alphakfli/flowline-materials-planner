@@ -136,4 +136,4 @@ def test_sample_story():
     assert f.kpis["margin_forecast_pct"] < f.kpis["margin_sold_pct"]
     assert f.kpis["billing_at_risk_fy"] > 0
     assert f.kpis["submittals_overdue"] == 3
-    assert r.summary()["alerts_critical"] == 6
+    assert r.summary()["alerts_critical"] == 7          # 6 + the unposted P-2601 completion (shop floor)

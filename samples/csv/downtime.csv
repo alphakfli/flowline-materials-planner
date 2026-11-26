@@ -1,0 +1,44 @@
+date,wc_id,reason,minutes,note
+2026-10-26,SWA,Waiting for material,117.0,Kit incomplete at shift start
+2026-10-27,FAB,Changeover,34.0,Tooling change
+2026-10-27,TRA,Waiting for material,50.0,Kit incomplete at shift start
+2026-10-28,KIT,Waiting for material,30.0,Kit incomplete at shift start
+2026-10-28,TRA,Waiting for material,67.0,Kit incomplete at shift start
+2026-10-29,FAB,Changeover,40.0,Tooling change
+2026-10-29,CCW,Changeover,32.0,Tooling change
+2026-10-30,CCW,Machine breakdown,130.0,Press brake hydraulic fault
+2026-10-30,BUS,Changeover,31.0,Tooling change
+2026-10-30,TRA,Waiting for material,104.0,Kit incomplete at shift start
+2026-11-02,KIT,Waiting for material,46.0,Kit incomplete at shift start
+2026-11-02,SWA,Waiting for material,102.0,Kit incomplete at shift start
+2026-11-03,FAB,Changeover,33.0,Tooling change
+2026-11-04,BUS,Waiting for material,112.0,Kit incomplete at shift start
+2026-11-04,TST,No operator,197.0,Absence not covered
+2026-11-05,TRA,Waiting for material,99.0,Kit incomplete at shift start
+2026-11-06,SWA,Waiting for material,36.0,Kit incomplete at shift start
+2026-11-06,CCW,Changeover,22.0,Tooling change
+2026-11-06,TRA,Waiting for material,43.0,Kit incomplete at shift start
+2026-11-09,CCW,Machine breakdown,129.0,Press brake hydraulic fault
+2026-11-09,BUS,Waiting for material,33.0,Kit incomplete at shift start
+2026-11-09,FAB,Changeover,54.0,Tooling change
+2026-11-10,FAB,Changeover,51.0,Tooling change
+2026-11-10,FAB,Waiting for drawings,61.0,Revision not released
+2026-11-10,CCW,Changeover,44.0,Tooling change
+2026-11-11,FAB,Changeover,56.0,Tooling change
+2026-11-12,SWA,Waiting for material,88.0,Kit incomplete at shift start
+2026-11-12,FAB,Machine breakdown,84.0,Press brake hydraulic fault
+2026-11-12,BUS,Changeover,24.0,Tooling change
+2026-11-13,BUS,Waiting for material,86.0,Kit incomplete at shift start
+2026-11-13,BUS,Changeover,41.0,Tooling change
+2026-11-16,BUS,Changeover,40.0,Tooling change
+2026-11-16,CCW,Machine breakdown,123.0,Press brake hydraulic fault
+2026-11-17,KIT,Waiting for material,34.0,Kit incomplete at shift start
+2026-11-18,CCW,Machine breakdown,53.0,Press brake hydraulic fault
+2026-11-19,FAB,Changeover,27.0,Tooling change
+2026-11-20,CCW,Changeover,25.0,Tooling change
+2026-11-20,FAB,Changeover,40.0,Tooling change
+2026-11-20,CCW,Changeover,23.0,Tooling change
+2026-11-23,KIT,Waiting for material,150.0,P-2604 core and radiators not in stock (due 25-26 Nov)
+2026-11-23,SWA,No operator,240.0,"One assembler absent, not covered"
+2026-11-23,FAB,Changeover,35.0,Tooling change for P-2605 doors
+2026-11-23,TST,Quality hold,90.0,Section 2 failed hi-pot: re-torque bus joints and retest

@@ -22,9 +22,17 @@ from flowline.io.importer import load_files, workbook_bytes
 from flowline.io.template import template_bytes
 from flowline.meetings import STAKEHOLDERS, alerts_to_actions
 from flowline.models import normalize
-from flowline.reports import excel_report, meeting_pack_pdf, pdf_report, powerquery_workbook, project_review_pdf
+from flowline.reports import (
+    excel_report,
+    meeting_pack_pdf,
+    pdf_report,
+    powerquery_workbook,
+    project_review_pdf,
+    tier_board_pdf,
+)
 from flowline.reports.vsm_iso import vsm_iso_html
 from flowline.sample import build_sample
+from flowline.shopfloor import TIERS as TIER_LETTERS
 from flowline.team import KPI
 from flowline.vsm import future_state
 
@@ -110,7 +118,9 @@ with st.sidebar:
     if st.session_state.get("actions_key") != akey:
         st.session_state["actions_key"] = akey
         st.session_state["actions_df"] = data.actions.copy()
-    data = _replace(data, actions=normalize("actions", st.session_state["actions_df"]))
+        st.session_state["cm_df"] = data.countermeasures.copy()
+    data = _replace(data, actions=normalize("actions", st.session_state["actions_df"]),
+                    countermeasures=normalize("countermeasures", st.session_state["cm_df"]))
 
     st.header("What-if")
     sup_names = data.supplier_names()
@@ -169,7 +179,7 @@ c[4].metric("Year-end turns vs target", f"{S['turns_year_end']:.1f} vs {S['turns
             help="Fiscal-year COGS (closed months plus projection) divided by year-end inventory.")
 c[5].metric("Critical alerts", S["alerts_critical"], delta("alerts_critical"), delta_color="inverse")
 
-tabs = st.tabs(["Overview", "Clear to build", "Inventory & working capital", "Contract manufacturers", "Suppliers",
+tabs = st.tabs(["Overview", "Clear to build", "Shop floor", "Inventory & working capital", "Contract manufacturers", "Suppliers",
                 "Supply risk", "Cost reduction", "Project financials", "Team & KPIs", "Meetings & actions", "Alerts", "Data and exports",
                 "Value stream"])
 
@@ -287,8 +297,218 @@ with tabs[1]:
     st.caption(f"Parts with a lead time of {s.long_lead_days} days or more, with the date they must be on order.")
     table(r.ctb.long_lead)
 
-# ---------------- Inventory ----------------
+# ---------------- Shop floor ----------------
 with tabs[2]:
+    sf = r.shop
+    if sf is None:
+        st.info("Add the optional shop floor tables (work_centers and shop_schedule, plus hourly_output, downtime, "
+                "quality_checks, safety_events, operators, skills, erp_open_items, countermeasures) to see the daily build "
+                "plan, the SQDCC tier board and the skills matrix. The sample company has them.")
+    else:
+        k = sf.kpis
+        st.markdown(f"**{sf.today:%A %d %B %Y}, day shift at {int(sf.now_hour)}:00** ({sf.elapsed * 100:.0f}% of the shift gone). "
+                    "Materials, then production, then delivery: today's builds use the kits from Clear to build.")
+        a = st.columns(6)
+        a[0].metric("Schedule attainment", f"{k['attainment_pct']:.0f}%", f"target {s.attainment_target_pct:.0f}%", delta_color="off",
+                    **NOARROW, help="Earned standard hours / hours planned to this hour.")
+        a[1].metric("First-pass yield", f"{k['fpy_pct']:.0f}%", f"target {s.fpy_target_pct:.0f}%", delta_color="off", **NOARROW)
+        a[2].metric("Labour productivity", f"{k['productivity_pct']:.0f}%", f"target {s.productivity_target_pct:.0f}%",
+                    delta_color="off", **NOARROW, help="Earned standard hours / hours clocked.")
+        a[3].metric("People short", f"{k['people_short']:.0f}")
+        a[4].metric("Downtime today", f"{k['downtime_min_today']:.0f} min")
+        a[5].metric("ERP items overdue", k["erp_overdue"], fmt_money(k["unposted_value"], cur) + " not posted", delta_color="off",
+                    **NOARROW)
+
+        st.subheader("SQDCC tier board")
+        icon = {"Green": "🟢 Green", "Amber": "🟠 Amber", "Red": "🔴 Red", "No data": "⚪ No data"}
+        tb = sf.tier.copy()
+        tb["today"] = [fmt_money(v, cur) if t_ == "Cash" else (f"{v:.0f}" if t_ == "Safety" else f"{v:.0f}%") if pd.notna(v) else "–"
+                       for t_, v in zip(tb["tier"], tb["value"], strict=True)]
+        tb["goal"] = [fmt_money(v, cur) if t_ == "Cash" else (f"{v:.0f}" if t_ == "Safety" else f"{v:.0f}%")
+                      for t_, v in zip(tb["tier"], tb["target"], strict=True)]
+        tb["status"] = tb["status"].map(icon)
+        st.dataframe(tb[["tier", "metric", "today", "goal", "status", "trend", "detail"]], hide_index=True, width="stretch",
+                     column_config={"tier": st.column_config.TextColumn("Letter", width="small"),
+                                    "metric": st.column_config.TextColumn("Measure", width="medium"),
+                                    "today": "Today", "goal": "Target", "status": "Status",
+                                    "trend": st.column_config.LineChartColumn("Last 10 days", width="small"),
+                                    "detail": st.column_config.TextColumn("Detail", width="large")})
+        st.caption("Tier 1 is the cell huddle at the start of the shift; Tier 2 is the supervisor and support functions "
+                   "(materials, quality, engineering) at mid-morning. Red needs a countermeasure; amber is within 5 points.")
+
+        st.subheader("Today's build plan by work centre")
+        pl = sf.plan
+        if True:
+            table(pl[["work_center", "operation", "planned_hours", "planned_to_now", "earned_hours", "actual_hours",
+                      "attainment_pct", "productivity_pct", "people_needed", "people_assigned", "downtime_min", "downtime_reason"]],
+                  {"work_center": st.column_config.TextColumn("Work centre"), "operation": st.column_config.TextColumn("Job", width="medium"),
+                   "planned_hours": st.column_config.NumberColumn("Shift plan h", format="%.0f"),
+                   "planned_to_now": st.column_config.NumberColumn("Plan to now h", format="%.1f"),
+                   "earned_hours": st.column_config.NumberColumn("Earned h", format="%.1f"),
+                   "actual_hours": st.column_config.NumberColumn("Clocked h", format="%.1f"),
+                   "attainment_pct": st.column_config.ProgressColumn("Attainment", format="%.0f%%", min_value=0, max_value=110),
+                   "productivity_pct": st.column_config.NumberColumn("Productivity", format="%.0f%%"),
+                   "people_needed": st.column_config.NumberColumn("Need", format="%.0f"),
+                   "people_assigned": st.column_config.NumberColumn("Here", format="%.0f"),
+                   "downtime_min": st.column_config.NumberColumn("Down min", format="%.0f"),
+                   "downtime_reason": st.column_config.TextColumn("Reason")})
+        short = pl[pl["people_short"] > 0]
+        if len(short):
+            st.warning("People: " + "; ".join(f"{x.work_center} has {x.people_assigned:.0f} of {x.people_needed:.0f}"
+                                               for x in short.itertuples())
+                       + ". Check the skills matrix below for who can cover.", icon="👷")
+
+        st.subheader("Output and losses")
+        g1, g2 = st.columns(2)
+        with g1:
+            st.markdown(f"**Plan vs earned to {int(sf.now_hour)}:00, by work centre**")
+            fig = go.Figure()
+            fig.add_trace(go.Bar(y=pl["work_center"], x=pl["planned_to_now"], orientation="h", name="Plan to now",
+                                 marker_color="#c9c7bf", hovertemplate="%{y}: plan %{x:.1f} h<extra></extra>"))
+            fig.add_trace(go.Bar(y=pl["work_center"], x=pl["earned_hours"], orientation="h", name="Earned",
+                                 marker_color=[CRIT if x_ == "Red" else WARN if x_ == "Amber" else SERIES[0] for x_ in pl["status"]],
+                                 showlegend=False, hovertemplate="%{y}: earned %{x:.1f} h<extra></extra>"))
+            fig.add_trace(go.Bar(y=[None], x=[None], orientation="h", name="Earned (red = behind plan)", marker_color=SERIES[0]))
+            fig.update_layout(barmode="group", bargap=.3, yaxis=dict(autorange="reversed"))
+            fig.update_xaxes(title="standard hours", showgrid=True, gridcolor=GRID)
+            st.plotly_chart(_fig(fig, 330), width="stretch")
+        with g2:
+            st.markdown("**Output by hour today (cumulative)**")
+            wcs = ["All work centres"] + pl["work_center"].tolist()
+            pick = st.selectbox("Work centre", wcs, key="sf_wc")
+            hh = sf.hourly
+            if pick != "All work centres":
+                wid = pl.loc[pl["work_center"] == pick, "wc_id"].iloc[0]
+                hh = hh[hh["wc_id"] == wid]
+            agg = hh.groupby("hour")[["planned_hours", "earned_hours"]].sum().cumsum().reset_index()
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=agg["hour"], y=agg["planned_hours"], name="Plan", mode="lines",
+                                     line=dict(color=INK2, width=2, dash="dash"), hovertemplate="%{x}:00 plan %{y:.1f} h<extra></extra>"))
+            fig.add_trace(go.Scatter(x=agg["hour"], y=agg["earned_hours"], name="Earned", mode="lines+markers",
+                                     line=dict(color=SERIES[0], width=2), marker=dict(size=8),
+                                     hovertemplate="%{x}:00 earned %{y:.1f} h<extra></extra>"))
+            fig.update_xaxes(title="hour starting", dtick=1)
+            fig.update_yaxes(title="cumulative standard hours", showgrid=True, gridcolor=GRID)
+            st.plotly_chart(_fig(fig, 270), width="stretch")
+        h2, h3 = st.columns(2)
+        with h2:
+            dp = sf.downtime
+            st.markdown("**Downtime by reason, last 7 working days**")
+            fig = go.Figure(go.Bar(x=dp["reason"], y=dp["minutes"], marker_color=[CRIT if i == 0 else SERIES[0] for i in range(len(dp))],
+                                   hovertemplate="%{x}: %{y:.0f} min<extra></extra>"))
+            fig.update_yaxes(title="minutes", showgrid=True, gridcolor=GRID)
+            st.plotly_chart(_fig(fig, 300), width="stretch")
+        with h3:
+            fp = sf.fpy
+            st.markdown("**First-pass yield by work centre**")
+            fig = go.Figure()
+            fig.add_trace(go.Bar(x=fp["work_center"], y=fp["fpy_4w_pct"], name="4 weeks", marker_color="#c9c7bf",
+                                 hovertemplate="%{x} 4 weeks: %{y:.1f}%<extra></extra>"))
+            fig.add_trace(go.Bar(x=fp["work_center"], y=fp["fpy_today_pct"], name="Today",
+                                 marker_color=[CRIT if v_ < s.fpy_target_pct else SERIES[2] for v_ in fp["fpy_today_pct"].fillna(100)],
+                                 hovertemplate="%{x} today: %{y:.1f}%<extra></extra>"))
+            fig.add_hline(y=s.fpy_target_pct, line=dict(color=INK2, dash="dash", width=1))
+            fig.update_layout(barmode="group")
+            fig.update_yaxes(range=[60, 102], ticksuffix="%", showgrid=True, gridcolor=GRID)
+            st.plotly_chart(_fig(fig, 300), width="stretch")
+        if len(sf.downtime_today):
+            st.caption("Downtime today: " + "; ".join(f"{x.work_center} {x.minutes:.0f} min, {x.reason.lower()} ({x.note})"
+                                                     for x in sf.downtime_today.itertuples()))
+
+        st.subheader("Misses and countermeasures")
+        ms = sf.misses
+        if len(ms):
+            table(ms[["metric", "miss", "countermeasure", "needs", "detail"]],
+                  {"metric": st.column_config.TextColumn("Letter", width="small"),
+                   "miss": st.column_config.TextColumn("Miss", width="medium"),
+                   "countermeasure": st.column_config.TextColumn("Open countermeasure", width="medium"),
+                   "needs": st.column_config.TextColumn("Next step", width="medium"), "detail": "Cause seen"})
+        st.caption("The log below works like the action log: edit in place, Save, and download the input workbook to keep it.")
+        cm_base = st.session_state["cm_df"].copy()
+        for c in ("date", "due"):
+            cm_base[c] = pd.to_datetime(cm_base[c], errors="coerce")
+        cm_cols = ["cm_id", "date", "tier", "metric", "wc_id", "miss", "cause", "countermeasure", "owner", "due", "status"]
+        cm_ed = st.data_editor(cm_base[cm_cols], hide_index=True, width="stretch", num_rows="dynamic", key="cm_editor",
+                               column_config={"cm_id": "Id", "date": st.column_config.DateColumn("Date"),
+                                              "tier": st.column_config.SelectboxColumn("Tier", options=["Tier 1", "Tier 2"]),
+                                              "metric": st.column_config.SelectboxColumn("Letter", options=TIER_LETTERS),
+                                              "wc_id": st.column_config.SelectboxColumn("Work centre", options=pl["wc_id"].tolist()),
+                                              "miss": st.column_config.TextColumn("Miss", width="medium"),
+                                              "cause": st.column_config.TextColumn("Cause", width="medium"),
+                                              "countermeasure": st.column_config.TextColumn("Countermeasure", width="large"),
+                                              "due": st.column_config.DateColumn("Due"),
+                                              "status": st.column_config.SelectboxColumn("Status", options=["Open", "Done"])})
+        m1, m2, m3 = st.columns(3)
+        if m1.button("Add today's misses to the log", width="stretch", help="One row per miss that has no countermeasure yet."):
+            new = ms[ms["countermeasure"] == ""]
+            log = st.session_state["cm_df"].copy()
+            n0 = len(log)
+            rows_ = [dict(cm_id=f"CM-{100 + n0 + i}", date=pd.Timestamp(s.as_of_date), tier="Tier 1", metric=x.metric, wc_id=x.wc_id,
+                          miss=x.miss, cause=x.detail, countermeasure="", owner="Production supervisor",
+                          due=pd.Timestamp(s.as_of_date) + pd.Timedelta(days=1), status="Open") for i, x in enumerate(new.itertuples())]
+            st.session_state["cm_df"] = pd.concat([log, pd.DataFrame(rows_)], ignore_index=True) if rows_ else log
+            st.rerun()
+        if m2.button("Save edits to the log", width="stretch"):
+            st.session_state["cm_df"] = cm_ed.copy()
+            st.rerun()
+        m3.download_button("Tier 2 board (PDF)", tier_board_pdf(r), f"tier2_board_{s.as_of_date:%Y%m%d}.pdf", "application/pdf",
+                           width="stretch", help="One page for the Tier 2 meeting: SQDCC, today's plan, misses, kits short.")
+
+        st.subheader("Skills matrix and training")
+        k1, k2 = st.columns([1.35, 1])
+        with k1:
+            mx = sf.skills
+            if len(mx):
+                order = [w for w in pl["wc_id"].tolist() if w in mx.columns] + \
+                        [c for c in mx.columns if c not in pl["wc_id"].tolist() and c not in ("operator_id", "name", "shift", "home_wc")]
+                rank = {w: i for i, w in enumerate(order)}
+                mx = mx.assign(_r=mx["home_wc"].map(rank).fillna(99)).sort_values(["shift", "_r", "name"])
+                labels = mx["name"] + " (" + mx["shift"].str[0] + ", " + mx["home_wc"] + ")"
+                z = mx[order].values
+                txt = [[{0: "", 1: "1", 2: "2", 3: "3", 4: "4"}[int(v)] for v in row] for row in z]
+                fig = go.Figure(go.Heatmap(z=z, x=order, y=labels, zmin=0, zmax=4, text=txt, texttemplate="%{text}",
+                                           colorscale=[[0, "#f4f3ef"], [.25, "#dbe8f8"], [.5, "#9fc3ee"], [.75, "#2a78d6"], [1, "#1f3a5f"]],
+                                           colorbar=dict(title="Level", tickvals=[0, 1, 2, 3, 4],
+                                                         ticktext=["0 not trained", "1 in training", "2 with help", "3 independent",
+                                                                   "4 can train"]),
+                                           xgap=2, ygap=2, hovertemplate="%{y} at %{x}: level %{z}<extra></extra>"))
+                fig.update_yaxes(autorange="reversed", tickfont=dict(size=10))
+                fig.update_xaxes(side="top")
+                st.plotly_chart(_fig(fig, max(380, 17 * len(mx) + 90)), width="stretch")
+        with k2:
+            cv = sf.coverage
+            if len(cv):
+                st.markdown("**Coverage: qualified people (level 3-4) per shift**")
+                table(cv[["work_center", "shift", "qualified", "minimum", "gap", "trainers", "in_training"]],
+                      {"work_center": "Work centre", "qualified": "Qualified", "minimum": "Need", "gap": "Gap",
+                       "trainers": "Can train", "in_training": "In training"})
+            if len(sf.training):
+                st.markdown("**Training plan**")
+                table(sf.training, {"from_level": "From", "to_level": "To", "target": st.column_config.DateColumn("Target")})
+
+        st.subheader("ERP to clear today")
+        e1, e2 = st.columns([1.4, 1])
+        with e1:
+            er = sf.erp
+            if len(er):
+                table(er[["ref", "kind", "work_center", "project_id", "age_days", "overdue", "value", "owner", "note"]],
+                      {**money_cols(cur, "value"), "age_days": st.column_config.NumberColumn("Age (days)", format="%d"),
+                       "overdue": st.column_config.CheckboxColumn("Overdue"),
+                       "note": st.column_config.TextColumn("What it blocks", width="large")})
+                st.caption(f"Overdue = older than {s.erp_max_age_days} days. In SAP: CO11N confirmations, COGI backflush errors, "
+                           "MI07 count differences, MB1A scrap, TECO and closing orders.")
+        with e2:
+            st.markdown(f"**Kits short for builds in the next {s.kit_horizon_days} days** (from Clear to build)")
+            kt = sf.kits
+            if len(kt):
+                table(kt[["project_id", "build_start", "item_id", "description", "qty", "po_number", "supply_date"]],
+                      {"build_start": st.column_config.DateColumn("Build start"), "supply_date": st.column_config.DateColumn("Due in"),
+                       "po_number": "PO"})
+            else:
+                st.success("Every build starting soon has its full kit in stock.")
+
+# ---------------- Inventory ----------------
+with tabs[3]:
     k = r.inventory.kpis
     a = st.columns(5)
     a[0].metric("Inventory now", fmt_money(k["inventory_now"], cur))
@@ -350,7 +570,7 @@ with tabs[2]:
     table(r.ctb.excess, money_cols(cur, "excess_value", "unneeded_on_order_value"))
 
 # ---------------- Contract manufacturers ----------------
-with tabs[3]:
+with tabs[4]:
     perf = r.cm.performance
     st.subheader("Contract manufacturer summary")
     table(perf, {"otd_pct": st.column_config.NumberColumn("OTD %", format="%.0f%%"),
@@ -395,7 +615,7 @@ with tabs[3]:
             st.plotly_chart(_fig(fig, 260, title=dict(text="On-time delivery by month", font=dict(size=14))), width="stretch")
 
 # ---------------- Suppliers ----------------
-with tabs[4]:
+with tabs[5]:
     sc = r.suppliers.scorecard
     k = r.suppliers.kpis
     a = st.columns(4)
@@ -437,7 +657,7 @@ with tabs[4]:
 
 
 # ---------------- Supply risk ----------------
-with tabs[5]:
+with tabs[6]:
     rk = r.risk
     a = st.columns(4)
     a[0].metric("High risks", rk.kpis["risks_high"], f"of {rk.kpis['risks_total']}", delta_color="off", **NOARROW)
@@ -511,7 +731,7 @@ with tabs[5]:
         st.info("Add a shipments table to see logistics-provider performance.")
 
 # ---------------- Cost reduction ----------------
-with tabs[6]:
+with tabs[7]:
     co = r.cost
     k = co.kpis
     a = st.columns(4)
@@ -565,7 +785,7 @@ with tabs[6]:
     table(co.opportunities, {**money_cols(cur, "annual_value"), "finding": st.column_config.TextColumn(width="large")})
 
 # ---------------- Project financials ----------------
-with tabs[7]:
+with tabs[8]:
     fi = r.financials
     if fi is None:
         st.info("Add the optional tables wbs_budget, cost_actuals and billing_milestones (and change_orders, submittals) "
@@ -697,7 +917,7 @@ with tabs[7]:
                        "delays the supplier's production release.")
 
 # ---------------- Team & KPIs ----------------
-with tabs[8]:
+with tabs[9]:
     tm = r.team
     st.subheader("Department KPIs")
     dep = tm.department
@@ -749,7 +969,7 @@ with tabs[8]:
               config={"message": st.column_config.TextColumn(width="large")})
 
 # ---------------- Meetings & actions ----------------
-with tabs[9]:
+with tabs[10]:
     ag = r.meetings.agenda
     st.subheader("This week's meeting agenda")
     st.caption("Built from the model for each stakeholder group. Use one section per meeting, or run them in order in a "
@@ -813,7 +1033,7 @@ with tabs[9]:
     b3.download_button("Download input workbook with the log", workbook_bytes(data), "flowline_input.xlsx", width="stretch")
 
 # ---------------- Alerts ----------------
-with tabs[10]:
+with tabs[11]:
     al = r.alerts
     f = st.columns(3)
     sev = f[0].multiselect("Severity", ["Critical", "Warning", "Info"], default=["Critical", "Warning"])
@@ -844,7 +1064,7 @@ with tabs[10]:
     a2.download_button("Download alerts (CSV)", al.to_csv(index=False).encode(), "alerts.csv", "text/csv", width="stretch")
 
 # ---------------- Data and exports ----------------
-with tabs[11]:
+with tabs[12]:
     st.subheader("Exports")
     stamp = f"{s.as_of_date:%Y%m%d}"
     e = st.columns(5)
@@ -871,7 +1091,7 @@ with tabs[11]:
     table(tbls[t])
 
 # ---------------- Value stream ----------------
-with tabs[12]:
+with tabs[13]:
     v = r.vsm
     if v is None:
         st.info("Add the optional table process_steps (one product family's route: process steps and the stock points "

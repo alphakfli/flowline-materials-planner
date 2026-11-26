@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.10.0 (November 2026)
+
+- **Shop floor** tab: SQDCC tier board with 10-day trends; today's build plan by work centre (plan to now, earned,
+  clocked, attainment, productivity, people needed vs here, downtime); plan vs earned and cumulative output by hour;
+  downtime Pareto; first-pass yield; misses linked to open countermeasures (needs one / escalate to Tier 2) and an
+  editable countermeasure log; skills matrix with coverage per shift and a training plan; ERP items to clear with
+  age; kits short for the next builds from clear to build; one-page Tier 2 board PDF.
+- Ten new optional tables (work_centers, shop_schedule, hourly_output, downtime, quality_checks, safety_events,
+  operators, skills, erp_open_items, countermeasures) and shop-floor targets in settings. Sample data for Corvane:
+  eight work centres, 31 people, four weeks of history and today to 13:00.
+- Shop-floor alerts (unposted completions, incidents, work centres behind plan, single-qualified stations, old ERP
+  items), Production agenda items, a shop-floor page in the PDF pack, Excel sheets and Power Query tables.
+
 ## 0.9.0 (November 2026)
 
 - Renamed to **FlowLine Materials Planner** (was Materials Control Tower): repository and folder

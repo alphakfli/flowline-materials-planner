@@ -1,6 +1,6 @@
 # User guide
 
-This guide takes you through the FlowLine Materials Planner step by step, then through sixteen scenarios a Materials
+This guide takes you through the FlowLine Materials Planner step by step, then through eighteen scenarios a Materials
 Manager meets in a normal month. The numbers match the sample company, **Corvane Grid Equipment** (fictional),
 as of Monday 23 November 2026 with a fiscal year ending 31 December 2026.
 
@@ -50,7 +50,7 @@ creates the GitHub repository if needed, and pushes. Then deploy at [share.strea
 | Sidebar, **What-if** | Supplier slips or recovers; past-due POs arrive later; apply all push-outs. The whole model re-runs |
 | Header line | Company, as-of date, fiscal year end and the scenario name (**Base case** when no what-if is on) |
 | Six headline numbers | Projects clear to build, projects late to customer, inventory now, year-end landing, year-end turns vs target, critical alerts. With a what-if on, the small arrows show the change against the base case |
-| Tabs | Overview, Clear to build, Inventory & working capital, Contract manufacturers, Suppliers, Supply risk, Cost reduction, Project financials, Team & KPIs, Meetings & actions, Alerts, Data and exports, Value stream |
+| Tabs | Overview, Clear to build, Shop floor, Inventory & working capital, Contract manufacturers, Suppliers, Supply risk, Cost reduction, Project financials, Team & KPIs, Meetings & actions, Alerts, Data and exports, Value stream |
 
 Colors mean the same everywhere and always come with a word or icon: 🔴 red = late or critical, 🟠 amber = at
 risk or warning, 🟢 green = clear, grey = in build or built.
@@ -81,6 +81,32 @@ risk or warning, 🟢 green = clear, grey = in build or built.
 4. **Late and missing parts.** Every late or uncovered line across projects, filterable by issue and buyer.
    *Not yet ordered* lines are hidden by default: they still have time.
 5. **Long-lead parts.** Parts with 90+ days lead time and the date they must be on order.
+
+### Shop floor
+
+The day on the floor: materials, then production, then delivery. Today's numbers run to the current hour of the
+day shift (13:00 in the sample).
+
+1. Six numbers: **schedule attainment** (standard hours earned / hours planned to this hour), **first-pass yield**,
+   **labour productivity** (earned / clocked hours), **people short**, **downtime today** and **ERP items overdue**
+   (with the value of completions not posted).
+2. **SQDCC tier board**: one row each for Safety, Quality, Delivery, Cost and Cash, with today's value, the target,
+   🟢 green / 🟠 amber / 🔴 red, a 10-day trend and what is behind it. This is the board for the Tier 1 cell huddle and
+   the Tier 2 meeting.
+3. **Today's build plan by work centre**: the job, shift plan, plan to now, earned and clocked hours, attainment,
+   productivity, people needed vs here, and downtime with its reason. A banner names any work centre short of people.
+4. **Output and losses**: plan vs earned by work centre; cumulative output by hour (all work centres or one); the
+   downtime Pareto for the last 7 working days; first-pass yield by work centre, today against 4 weeks.
+5. **Misses and countermeasures**: every red item today with the open countermeasure if there is one. *Needs a
+   countermeasure today* if not; *Escalate to Tier 2* if the miss repeats while a countermeasure is open. Below it,
+   the countermeasure log: edit it in place, **Add today's misses to the log**, **Save edits**, and download the
+   **Tier 2 board (PDF)**, one page for the meeting.
+6. **Skills matrix and training**: every person against every work centre (0 not trained to 4 can train others),
+   coverage per work centre and shift against the people needed, and a training plan for the gaps with a trainer
+   and a target date.
+7. **ERP to clear today**: completions not posted, backflush errors, count variances, scrap, open orders, labels,
+   with age and what each one blocks; and the **kits short** for builds starting in the next 7 days, straight from
+   Clear to build.
 
 ### Inventory & working capital
 
@@ -225,16 +251,17 @@ Each scenario says what happened, the steps to follow in the app, what you shoul
 *You open FlowLine before the 9:00 materials meeting.*
 
 1. Read the six headline numbers: **4 of 11** open projects clear to build, **2** late to customer, inventory
-   **$2.87M**, year-end landing **$2.13M**, turns **5.3 vs 6.5**, **6** critical alerts.
+   **$2.87M**, year-end landing **$2.13M**, turns **5.3 vs 6.5**, **7** critical alerts.
 2. On **Overview**, look at the project bar: 2 Late, 5 At risk, 3 Clear by start, 1 Clear to build.
 3. Read the **Top actions**. The critical ones are: the drawings-approved invoice for P-2602 ($275,600) that was
-   never raised; the tap changer for P-2613 that should have been ordered by
+   never raised; the P-2601 completion not posted in SAP for 3 days ($633,050), which stops the shipment on 25 Nov; the tap changer for P-2613 that should have been ordered by
    20 October; Ironvale Fabrication loaded at 128% in December; P-2606 shipping 28 days late; the year-end
    landing $362k over target; P-2613 shipping 14 days late.
 
 **What you do:** you now have the agenda for the meeting: two late projects (both gated by the same tap changer),
 one CM capacity problem, and a working-capital gap. The missed invoice is not a materials problem, but it is cash the
-company has earned: send it to the project controller (Noah) before the meeting.
+company has earned: send it to the project controller (Noah) before the meeting, and the P-2601 posting to the
+production supervisor (scenario 17).
 
 ### Scenario 2. A customer order is late: find the gating part
 
@@ -503,6 +530,50 @@ agree ship dates at order entry so built lineups don't wait. Treat the dollars a
 forecast: in engineer-to-order, one lineup more or less in build moves the WIP triangle by weeks (see *Limits* in
 [logic.md](logic.md)).
 
+### Scenario 17. Tier 1 and Tier 2 on the shop floor
+
+*Monday, 13:00. You run the Tier 2 meeting with materials, quality and engineering.*
+
+1. Open **Shop floor**. Attainment is **89%** against 95%, first-pass yield **94%**, productivity **93%**, one person
+   short, 515 minutes of downtime, 3 ERP items overdue.
+2. On the **SQDCC board**: Safety green (41 days since the last recordable, 2 near misses this week); Quality amber;
+   Delivery red; Cost green; Cash red ($633,050 of completed work not posted).
+3. In **Today's build plan**, three work centres are behind:
+   - **Kitting 46%**: 150 minutes waiting for material. **Kits short** shows why: the P-2604 core (CM230, due
+     25 Nov) and radiators (S170, due 26 Nov) are not in yet, for a build that starts on 29 Nov. P-2604 is
+     *Clear by start* on the Clear to build tab: released on condition that both receipts arrive.
+   - **Switchgear assembly 84%**: 4 of 5 people; one absence not covered.
+   - **Test bay 75%**: section 2 of P-2602 failed hi-pot on a bus joint; 90 minutes on quality hold.
+4. **Misses and countermeasures**: the test-bay failure repeats the cause in CM-033 (torque not marked, open
+   since 20 Nov), and assembly's miss repeats CM-034 (bus kits late): both say **Escalate to Tier 2**. Kitting,
+   test-bay attainment and the cash item have no countermeasure yet.
+5. The **downtime Pareto** for the week has *Waiting for material* on top (270 minutes), ahead of absence and
+   changeovers.
+
+**What you do:** Cash first: post the P-2601 final confirmation today, or the 25 Nov shipment can't be created.
+Kitting: kit everything that is here for P-2604 and confirm the two deliveries with the buyer; don't move the build
+yet. Assembly: Victor O. from the test bay is qualified in assembly, but test is behind too, so cover the missing
+assembler with two hours' overtime instead. Quality: CM-033 is not working; make the torque mark a hold point that test checks
+before hi-pot, owner the assembly lead. Press **Add today's misses to the log**, fill in owners and dates, and
+download the **Tier 2 board** for the record.
+
+### Scenario 18. People and ERP before the end of the shift
+
+*14:30. You plan cover for tomorrow and clear SAP before the shift ends.*
+
+1. **Skills matrix**: the test bay has **one** qualified person on days (Uma N.). One absence stops all testing,
+   and the alert list already says so. Coverage also shows gaps in switchgear assembly (4 qualified for 5 places)
+   and on the evening shifts in fabrication and winding.
+2. The **training plan** proposes Hana V. for the test bay (level 2 now, trained by Uma N., target 23 Dec), Gus T.
+   for assembly, and Aiko M. and Esme P. on the evening shift.
+3. **ERP to clear today**: the P-2601 completion (3 days, blocks the shipment), a count variance on copper bus
+   (5 days, the inventory analyst's), and an old order to close (12 days) are overdue. The P-2602 backflush errors
+   and two scrapped sheets are new: clear them today so they don't age.
+
+**What you do:** book Hana V. into test-bay training this week; it is the cheapest risk you can remove. Clear
+COGI and post the scrap before 15:30; ask Grace to recount the copper bus with the stores lead. In the monthly
+one-to-ones, the training plan becomes each person's objective.
+
 ---
 
 ## 5. Use your own data
@@ -514,7 +585,9 @@ forecast: in engineer-to-order, one lineup more or less in build moves the WIP t
    `consumption_history`, `risk_register` and `shipments`; for cost reduction `savings_projects` and `savings_target`
    in settings; for project financials `wbs_budget`, `cost_actuals` and `billing_milestones` (with `change_orders`
    and `submittals` if you have them); for the value stream map `process_steps` for one product family (set
-   `vsm_family`, `vsm_hours_per_day` and `vsm_working_days` in settings). The README sheet of the template explains every column. [sap-mapping.md](sap-mapping.md) says where
+   `vsm_family`, `vsm_hours_per_day` and `vsm_working_days` in settings); for the shop floor `work_centers` and
+   `shop_schedule`, plus `hourly_output`, `downtime`, `quality_checks`, `safety_events`, `operators`, `skills`,
+   `erp_open_items` and `countermeasures` as you have them. The README sheet of the template explains every column. [sap-mapping.md](sap-mapping.md) says where
    each column lives in SAP.
 3. In `settings`, set `as_of_date` (blank = today), `fiscal_year_end`, `turns_target` and `company`.
 4. Upload the workbook (or the CSV files together). Check **Data and exports → Data check** for problems.
@@ -553,6 +626,14 @@ sample data only.
 | Takt time | Available working time / customer demand: the pace the customer buys at |
 | C/T, C/O | Cycle time per unit; changeover (setup) time between jobs |
 | Value-added % | Process days / total lead time |
+| SQDCC | Safety, Quality, Delivery, Cost, Cash: the five letters of the tier board |
+| Tier 1 / Tier 2 | Daily meetings: Tier 1 is the cell team at shift start; Tier 2 is the supervisor with support functions |
+| Standard (earned) hours | The hours the routing allows for the work completed |
+| Schedule attainment | Earned hours / planned hours |
+| Labour productivity | Earned hours / hours clocked |
+| First-pass yield (FPY) | Units passing inspection or test first time / units inspected |
+| Countermeasure | The action that stops a missed goal from repeating, with an owner and a date |
+| Skills matrix | Who is trained on which station, from 0 (not trained) to 4 (can train others) |
 | Submittal | A drawing or document sent for approval (to the customer) or received for approval (from a supplier) |
 
 ---

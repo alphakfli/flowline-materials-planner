@@ -75,6 +75,28 @@ HELP = {
     "submittals": ("Drawings and documents sent for approval (customer) or received for approval (supplier).", {
         "direction": "Customer or Supplier", "status": "Open, Approved, Approved as noted or Resubmit",
         "holds": "Billing milestone it holds (M2), 'release' for a supplier production release, or blank"}),
+    "work_centers": ("Shop floor: work centres (cells or bays). Turns on the Shop floor tab with shop_schedule.", {
+        "product_family": "Family or Both", "shift_hours": "Hours per shift", "shifts": "Shifts a day (1 or 2)",
+        "people_needed": "People needed per shift"}),
+    "shop_schedule": ("Daily build plan by work centre: one row per job or per work centre and day. Today's rows show "
+                      "progress to the current hour; older rows give the trend.", {
+        "planned_hours": "Standard hours planned for the day", "earned_hours": "Standard hours of work completed",
+        "actual_hours": "Hours clocked by the people", "people_needed": "People the plan needs",
+        "people_assigned": "People actually there", "overtime_hours": "Overtime hours (history)"}),
+    "hourly_output": ("Today's output by hour: planned and earned standard hours per work centre.", {
+        "hour": "Hour starting (7 = 07:00-08:00)"}),
+    "downtime": ("Downtime events.", {"reason": "Waiting for material, Machine breakdown, Changeover, Waiting for drawings, "
+                                               "Quality hold, No operator ...", "minutes": "Minutes lost"}),
+    "quality_checks": ("Inspections and tests: units inspected and passed first time.", {"defect": "What failed"}),
+    "safety_events": ("Safety events.", {"type": "Recordable, Lost time, First aid or Near miss"}),
+    "operators": ("Production people.", {"shift": "Day or Evening", "home_wc": "Usual work centre"}),
+    "skills": ("Skills matrix: one row per person and work centre.", {
+        "level": "0 not trained, 1 in training, 2 can do it with help, 3 independent, 4 can train others"}),
+    "erp_open_items": ("ERP items to clear: completions not posted, backflush errors, count variances, scrap, open orders.", {
+        "kind": "Completion not posted, Backflush error, Count variance, Scrap not posted, Order past finish, Shipping labels",
+        "created": "Date it appeared", "value": "Value at stake"}),
+    "countermeasures": ("Tier 1 and 2 countermeasure log for missed goals.", {
+        "tier": "Tier 1 or Tier 2", "metric": "Safety, Quality, Delivery, Cost or Cash", "status": "Open or Done"}),
     "process_steps": ("Value stream map for one product family: its route in order, process steps and the stock points "
                       "between them. Turns on the Value stream tab.", {
         "product_family": "Family as in projects.product_family (set vsm_family in settings if there are several)",

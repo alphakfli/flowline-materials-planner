@@ -235,7 +235,34 @@ DSO = open receivables / billing of the last 90 days × 90.
 by the due date; *blocked* when returned with status Resubmit. `holds` links a submittal to a billing milestone (M2)
 or to a supplier production release.
 
-## 10. Value stream map (`vsm.py`)
+## 10. Shop floor (`shopfloor.py`)
+
+Switched on by `work_centers` and `shop_schedule`; the other shop tables add to it.
+
+* **Today** = `as_of_date` (or the last date in `shop_schedule`). **Now** = `shop_now_hour`, or the last hour in
+  `hourly_output` + 1. Share of the shift gone = (now − `shop_day_start_hour`) / shift hours.
+* **Plan to now** = planned hours × share gone. **Attainment** = earned / plan to now; **productivity** = earned /
+  clocked; **people short** = needed − assigned. A work centre is red below `attainment_target_pct` − 5, amber
+  within 5 points.
+* **SQDCC board.** Safety: recordables, lost time and first aids today (green at zero), with days since the last
+  recordable and near misses in 7 days. Quality: units passed / inspected today (`fpy_target_pct`). Delivery: plant
+  attainment. Cost: plant productivity (`productivity_target_pct`), with 10-day overtime against
+  `overtime_target_pct`. Cash: value of completions not posted in the ERP (red above zero). Trends are the last 10
+  working days.
+* **Misses**: every red or amber letter, and every red work centre (Delivery) or work centre below the FPY target
+  (Quality). An open countermeasure with the same letter and work centre makes it *Escalate to Tier 2*; none
+  makes it *Needs a countermeasure today*.
+* **Downtime Pareto**: minutes by reason over the last 7 working days in the schedule.
+* **Skills coverage**: people at level 3 or 4 per work centre and shift, against max(`skills_min_qualified`,
+  people needed). The training plan picks people at level 1-2 there (or someone from another station on the shift),
+  a level-4 trainer, and a target 30 days out (60 from level 1). A work centre with fewer than
+  `skills_min_qualified` qualified people raises a warning.
+* **ERP**: age = today − created; overdue above `erp_max_age_days`. A completion not posted is a critical alert once
+  overdue.
+* **Kits short**: clear-to-build lines (open POs and shortages) for projects in build, or starting within
+  `kit_horizon_days` by their planned or forecast date.
+
+## 11. Value stream map (`vsm.py`)
 
 Switched on by the optional table `process_steps`: one product family's route as *Process* and *Stock* rows in flow
 order. The family is `vsm_family`, or the first in the table.
@@ -263,7 +290,7 @@ moves the WIP triangle by weeks, so read the map as a monthly snapshot, not a tr
 standard for one family; one-off projects with their own routings don't fit on one map. C/T and C/O are per unit
 of a family whose units differ in size. The map does not include kaizen bursts, supermarkets or pull signals.
 
-## 11. Alerts (`alerts.py`)
+## 12. Alerts (`alerts.py`)
 
 Critical: late projects, overdue long-lead orders, billing milestones reached but not invoiced, invoices more than
 60 days overdue, year-end landing more than 5% over target, CM overload

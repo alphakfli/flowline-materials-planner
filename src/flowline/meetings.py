@@ -111,6 +111,22 @@ def build_agenda(r) -> pd.DataFrame:
         add("Finance", "Safety-stock changes", f"Recommended changes add {cur}{r.risk.kpis['ss_value_change']:,.0f} of inventory",
             "Approve the safety-stock policy change", "", "Inventory control")
 
+    # Shop floor (Tier 2): the SQDCC letters, misses without a countermeasure, and kits short for the next builds
+    sf = getattr(r, "shop", None)
+    if sf is not None:
+        reds = sf.tier[sf.tier["status"].isin(["Red", "Amber"])]
+        if len(reds):
+            add("Production", "SQDCC board", "; ".join(f"{x.tier} {x.status.lower()}" for x in reds.itertuples()),
+                "Agree the countermeasure and owner for each red letter", "", "Production supervisor")
+        for x in sf.misses[sf.misses["countermeasure"] == ""].itertuples():
+            add("Production", f"Miss without a countermeasure: {x.metric}" + (f" {x.wc_id}" if x.wc_id else ""),
+                x.miss + (f" ({x.detail})" if x.detail else ""), "Name the countermeasure, owner and date", x.wc_id,
+                "Production supervisor")
+        for pid, g in sf.kits.groupby("project_id") if len(sf.kits) else []:
+            add("Production", f"Kit short: {pid}", ", ".join(f"{x.item_id} due {pd.Timestamp(x.supply_date):%d %b}"
+                                                           for x in g.itertuples()),
+                "Kit what is here; confirm the build start", pid, "Planner")
+
     # Project financials: billing and cash for finance, changes and collections for contracts, submittals for engineering
     fi = getattr(r, "financials", None)
     if fi is not None:

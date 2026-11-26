@@ -357,6 +357,138 @@ Billing plan per project and invoices raised.
 | `amount_invoiced` | number |  | Blank uses pct x contract |
 | `paid_date` | date (YYYY-MM-DD) |  | Blank until paid |
 
+## work_centers
+
+Shop floor: work centres (cells or bays). Turns on the Shop floor tab with shop_schedule.
+
+| Column | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `wc_id` | text |  |  |
+| `name` | text |  |  |
+| `product_family` | text |  | Family or Both |
+| `shift_hours` | number |  | Hours per shift |
+| `shifts` | number |  | Shifts a day (1 or 2) |
+| `people_needed` | number |  | People needed per shift |
+
+## shop_schedule
+
+Daily build plan by work centre: one row per job or per work centre and day. Today's rows show progress to the current hour; older rows give the trend.
+
+| Column | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `date` | date (YYYY-MM-DD) |  |  |
+| `wc_id` | text |  |  |
+| `project_id` | text |  |  |
+| `operation` | text |  |  |
+| `planned_hours` | number |  | Standard hours planned for the day |
+| `earned_hours` | number |  | Standard hours of work completed |
+| `actual_hours` | number |  | Hours clocked by the people |
+| `people_needed` | number |  | People the plan needs |
+| `people_assigned` | number |  | People actually there |
+| `overtime_hours` | number |  | Overtime hours (history) |
+
+## hourly_output
+
+Today's output by hour: planned and earned standard hours per work centre.
+
+| Column | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `date` | date (YYYY-MM-DD) |  |  |
+| `hour` | number |  | Hour starting (7 = 07:00-08:00) |
+| `wc_id` | text |  |  |
+| `planned_hours` | number |  |  |
+| `earned_hours` | number |  |  |
+
+## downtime
+
+Downtime events.
+
+| Column | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `date` | date (YYYY-MM-DD) |  |  |
+| `wc_id` | text |  |  |
+| `reason` | text |  | Waiting for material, Machine breakdown, Changeover, Waiting for drawings, Quality hold, No operator ... |
+| `minutes` | number |  | Minutes lost |
+| `note` | text |  |  |
+
+## quality_checks
+
+Inspections and tests: units inspected and passed first time.
+
+| Column | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `date` | date (YYYY-MM-DD) |  |  |
+| `wc_id` | text |  |  |
+| `project_id` | text |  |  |
+| `inspected` | number |  |  |
+| `passed` | number |  |  |
+| `defect` | text |  | What failed |
+
+## safety_events
+
+Safety events.
+
+| Column | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `date` | date (YYYY-MM-DD) |  |  |
+| `wc_id` | text |  |  |
+| `type` | text |  | Recordable, Lost time, First aid or Near miss |
+| `description` | text |  |  |
+
+## operators
+
+Production people.
+
+| Column | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `operator_id` | text |  |  |
+| `name` | text |  |  |
+| `shift` | text |  | Day or Evening |
+| `home_wc` | text |  | Usual work centre |
+
+## skills
+
+Skills matrix: one row per person and work centre.
+
+| Column | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `operator_id` | text |  |  |
+| `wc_id` | text |  |  |
+| `level` | number |  | 0 not trained, 1 in training, 2 can do it with help, 3 independent, 4 can train others |
+
+## erp_open_items
+
+ERP items to clear: completions not posted, backflush errors, count variances, scrap, open orders.
+
+| Column | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `ref` | text |  |  |
+| `kind` | text |  | Completion not posted, Backflush error, Count variance, Scrap not posted, Order past finish, Shipping labels |
+| `wc_id` | text |  |  |
+| `project_id` | text |  |  |
+| `created` | date (YYYY-MM-DD) |  | Date it appeared |
+| `value` | number |  | Value at stake |
+| `owner` | text |  |  |
+| `note` | text |  |  |
+
+## countermeasures
+
+Tier 1 and 2 countermeasure log for missed goals.
+
+| Column | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `cm_id` | text |  |  |
+| `date` | date (YYYY-MM-DD) |  |  |
+| `tier` | text |  | Tier 1 or Tier 2 |
+| `metric` | text |  | Safety, Quality, Delivery, Cost or Cash |
+| `wc_id` | text |  |  |
+| `miss` | text |  |  |
+| `cause` | text |  |  |
+| `countermeasure` | text |  |  |
+| `owner` | text |  |  |
+| `due` | date (YYYY-MM-DD) |  |  |
+| `status` | text |  | Open or Done |
+
 ## process_steps
 
 Value stream map for one product family: its route in order, process steps and the stock points between them. Turns on the Value stream tab.
@@ -433,6 +565,15 @@ Keys and defaults:
 | `vsm_family` |  |  |
 | `vsm_hours_per_day` | 16.0 |  |
 | `vsm_working_days` | 250 |  |
+| `shop_now_hour` | 0.0 |  |
+| `shop_day_start_hour` | 7.0 |  |
+| `attainment_target_pct` | 95.0 |  |
+| `fpy_target_pct` | 95.0 |  |
+| `productivity_target_pct` | 90.0 |  |
+| `overtime_target_pct` | 8.0 |  |
+| `skills_min_qualified` | 2 |  |
+| `erp_max_age_days` | 2 |  |
+| `kit_horizon_days` | 7 |  |
 
 ## Rules the importer checks
 

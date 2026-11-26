@@ -114,6 +114,9 @@ def excel_report(r: Result) -> bytes:
         (f"Contract value ({cur})", S.get("fin_contract")), ("Margin as sold (%)", S.get("fin_margin_sold_pct")),
         ("Margin forecast (%)", S.get("fin_margin_forecast_pct")), (f"Unbilled revenue ({cur})", S.get("fin_unbilled")),
         (f"Receivables overdue ({cur})", S.get("fin_ar_overdue")), (f"Billing at risk this fiscal year ({cur})", S.get("fin_billing_at_risk_fy")),
+        ("Shop floor", None), ("Schedule attainment today (%)", S.get("shop_attainment_pct")),
+        ("First-pass yield today (%)", S.get("shop_fpy_pct")), ("Labour productivity today (%)", S.get("shop_productivity_pct")),
+        (f"Completed work not posted ({cur})", S.get("shop_unposted_value")),
         ("Value stream", None), ("Lead time (days)", S.get("vsm_lead_time_days")),
         ("Value-added (%)", S.get("vsm_va_pct")), ("Biggest wait", S.get("vsm_biggest_wait")),
         ("Alerts", None), ("Critical", S["alerts_critical"]), ("Warning", S["alerts_warning"]),
@@ -150,7 +153,9 @@ def excel_report(r: Result) -> bytes:
                         ("action_log", "Action log"), ("project_financials", "Project financials"),
                         ("project_wbs", "Project WBS"), ("billing_milestones", "Billing milestones"),
                         ("receivables", "Receivables"), ("change_order_log", "Change orders"),
-                        ("submittal_register", "Submittals"), ("vsm", "Value stream")]:
+                        ("submittal_register", "Submittals"), ("vsm", "Value stream"),
+                        ("tier_board", "Tier board"), ("shop_plan", "Shop plan"), ("misses", "Misses"),
+                        ("skills_coverage", "Skills coverage"), ("erp_to_clear", "ERP to clear"), ("kits_short", "Kits short")]:
         if name not in t:
             continue
         _styled_sheet(wb, title, t[name][0], {"message": 80, "detail": 70, "description": 40})

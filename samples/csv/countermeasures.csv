@@ -1,0 +1,4 @@
+cm_id,date,tier,metric,wc_id,miss,cause,countermeasure,owner,due,status
+CM-031,2026-11-19,Tier 1,Safety,FAB,First aid: cut at deburring,No cut-resistant gloves at the station,Gloves and edge guard at the deburring station,Production supervisor,2026-11-24,Done
+CM-033,2026-11-20,Tier 1,Quality,TST,FPY 86% at test,Bus joint torque not marked,Add torque-and-mark check to the assembly checklist,Assembly lead,2026-11-25,Open
+CM-034,2026-11-22,Tier 2,Delivery,SWA,Attainment 88% for the week,Copper bus kits arrive after assembly starts,Kit bus with the assembly kit two days ahead,Kitting lead,2026-11-27,Open

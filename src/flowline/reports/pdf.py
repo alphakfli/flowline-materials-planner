@@ -214,7 +214,13 @@ def pdf_report(r: Result) -> bytes:
                             f"{fmt_money(c['weighted_pipeline'], cur)}; new opportunities {fmt_money(c['opportunity_value'], cur)}.", BODY))
         el.append(PageBreak())
 
-    # 5. Value stream (one product family)
+    # 5. Shop floor (Tier 2 view)
+    if getattr(r, "shop", None) is not None:
+        header("Shop floor: SQDCC and today's plan")
+        _shop_page(r, el)
+        el.append(PageBreak())
+
+    # 6. Value stream (one product family)
     v = getattr(r, "vsm", None)
     if v is not None:
         from flowline.reports.vsm_draw import shapes, supplier_note, to_drawing
@@ -232,7 +238,7 @@ def pdf_report(r: Result) -> bytes:
                             f"value-added {fk['va_pct']:,.0f}%.", BODY))
         el.append(PageBreak())
 
-    # 6. Alerts
+    # 7. Alerts
     header("Action list")
     al = r.alerts.head(30)
     rows = [["#", "Severity", "Area", "Ref", "Message", "Action", "Owner"]]
@@ -377,5 +383,71 @@ def project_review_pdf(r: Result, project_ids: list[str] | None = None) -> bytes
                 if x.overdue or x.blocked:
                     sf[(i, 6)] = FILL["Warning"]
             el.append(KeepTogether([Paragraph("Submittals", H2), _t(rows, [1.0, .8, 2.4, 1.6, .6, .7, 1.1, .9], sf)]))
+    doc.build(el)
+    return buf.getvalue()
+
+
+STATUS_FILL = {"Green": colors.HexColor("#DDF2E6"), "Amber": colors.HexColor("#FBEBC8"), "Red": colors.HexColor("#F6D5D5")}
+
+
+def _shop_page(r: Result, el: list) -> None:
+    f, cur, s = r.shop, r.settings.currency, r.settings
+    k = f.kpis
+    el.append(_kpis([("Schedule attainment", f"{k['attainment_pct']:.0f}%"), ("First-pass yield", f"{k['fpy_pct']:.0f}%"),
+                     ("Labour productivity", f"{k['productivity_pct']:.0f}%"), ("People short", f"{k['people_short']:.0f}"),
+                     ("Downtime today", f"{k['downtime_min_today']:.0f} min"), ("ERP items overdue", k["erp_overdue"])]))
+    el.append(Paragraph(f"SQDCC board, {f.today:%a %d %b %Y} at {int(f.now_hour)}:00", H2))
+    rows = [["", "Measure", "Today", "Target", "Status", "Detail"]]
+    fills = {}
+    for i, x in enumerate(f.tier.itertuples(), start=1):
+        val = (fmt_money(x.value, cur) if x.tier == "Cash" else f"{x.value:.0f}" if x.tier == "Safety" else f"{x.value:.0f}%") \
+            if pd.notna(x.value) else "–"
+        tgt = fmt_money(x.target, cur) if x.tier == "Cash" else f"{x.target:.0f}" if x.tier == "Safety" else f"{x.target:.0f}%"
+        rows.append([x.tier[0], Paragraph(f"<b>{x.tier}</b>: {x.metric}", CELL), val, tgt, x.status, Paragraph(x.detail, CELL)])
+        if x.status in STATUS_FILL:
+            fills[(i, 4)] = STATUS_FILL[x.status]
+            fills[(i, 0)] = STATUS_FILL[x.status]
+    el.append(_t(rows, [.3, 2.6, .9, .7, .7, 4.8], fills, font=8))
+    el.append(Paragraph(f"Today's plan by work centre (to {int(f.now_hour)}:00)", H2))
+    rows = [["Work centre", "Job", "Plan to now h", "Earned h", "Clocked h", "Attainment", "Productivity",
+             "People", "Downtime"]]
+    fills = {}
+    for i, x in enumerate(f.plan.itertuples(), start=1):
+        rows.append([x.work_center, Paragraph(x.operation, CELL), f"{x.planned_to_now:.1f}", f"{x.earned_hours:.1f}",
+                     f"{x.actual_hours:.1f}", f"{x.attainment_pct:.0f}%", f"{x.productivity_pct:.0f}%",
+                     f"{x.people_assigned:.0f} of {x.people_needed:.0f}",
+                     Paragraph(f"{x.downtime_min:.0f} min {x.downtime_reason.lower()}" if x.downtime_min else "", CELL)])
+        if x.status in STATUS_FILL and x.status != "Green":
+            fills[(i, 5)] = STATUS_FILL[x.status]
+        if x.people_short:
+            fills[(i, 7)] = STATUS_FILL["Amber"]
+    el.append(_t(rows, [1.4, 2.6, .85, .65, .7, .7, .75, .6, 1.6], fills))
+    if len(f.misses):
+        rows = [["Letter", "Miss", "Countermeasure", "Next step"]]
+        for x in f.misses.itertuples():
+            rows.append([x.metric, Paragraph(x.miss + (f" ({x.detail})" if x.detail else ""), CELL),
+                         Paragraph(x.countermeasure or "–", CELL), Paragraph(x.needs, CELL)])
+        el.append(KeepTogether([Paragraph("Misses and countermeasures", H2), _t(rows, [.7, 4.2, 2.8, 2.3])]))
+    if len(f.kits):
+        rows = [["Project", "Build start", "Part", "Qty", "Due", "PO"]]
+        for x in f.kits.itertuples():
+            rows.append([x.project_id, _d(x.build_start), Paragraph(f"{x.item_id} {x.description}", CELL), f"{x.qty:g}",
+                         _d(x.supply_date), x.po_number or "not ordered"])
+        el.append(KeepTogether([Paragraph(f"Kits short for builds in the next {s.kit_horizon_days} days", H2),
+                                _t(rows, [.8, .8, 3.6, .5, .8, 1.2])]))
+
+
+def tier_board_pdf(r: Result) -> bytes:
+    """One-page pack for the Tier 2 meeting: SQDCC board, today's plan, misses and kits short."""
+    s = r.settings
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=landscape(letter), leftMargin=.5 * inch, rightMargin=.5 * inch,
+                            topMargin=.45 * inch, bottomMargin=.45 * inch, title="Tier 2 board")
+    el = [Paragraph("Tier 2 board", H1), Paragraph(f"{s.company} · {r.shop.today:%A %d %B %Y} at {int(r.shop.now_hour)}:00"
+                                                   if r.shop else s.company, SMALL), Spacer(1, 6)]
+    if r.shop is None:
+        el.append(Paragraph("No shop floor data loaded (work_centers, shop_schedule).", BODY))
+    else:
+        _shop_page(r, el)
     doc.build(el)
     return buf.getvalue()

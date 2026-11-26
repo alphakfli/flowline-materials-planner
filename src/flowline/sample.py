@@ -428,6 +428,161 @@ def _process_steps(data: Dataset) -> Dataset:
     return replace(data, process_steps=normalize("process_steps", df))
 
 
+# ---- Shop floor: work centres, today's build plan (as of 13:00), 4 weeks of history, people and ERP items ----
+WORK_CENTERS = [  # id, name, family, shift hours, shifts, people needed per shift
+    ("KIT", "Kitting", "Both", 8, 1, 2),
+    ("FAB", "Sheet metal & fabrication", "Switchgear", 8, 2, 3),
+    ("BUS", "Bus bar shop", "Switchgear", 8, 1, 2),
+    ("SWA", "Switchgear assembly", "Switchgear", 8, 1, 5),
+    ("CCW", "Core & coil winding", "Transformers", 8, 2, 4),
+    ("TRA", "Transformer assembly", "Transformers", 8, 1, 4),
+    ("TST", "Test bay", "Both", 8, 1, 2),
+    ("SHP", "Shipping", "Both", 8, 1, 2),
+]
+# today's plan: wc, project, operation, planned h (full shift), earned h to 13:00, clocked h to 13:00, needed, assigned
+TODAY_PLAN = [
+    ("KIT", "P-2604", "Kit transformer P-2604 (build starts 29 Nov)", 16, 5.5, 12.0, 2, 2),
+    ("FAB", "P-2605", "Enclosures and doors for P-2605", 24, 17.5, 18.0, 3, 3),
+    ("BUS", "P-2605", "Copper bus for P-2605", 16, 11.8, 12.0, 2, 2),
+    ("SWA", "P-2602", "Wire and assemble sections 4-6, P-2602", 40, 25.2, 24.0, 5, 4),
+    ("CCW", "P-2603", "LV and HV windings, P-2603", 32, 23.6, 24.0, 4, 4),
+    ("TRA", "P-2603", "Core stacking and tanking prep, P-2603", 32, 22.8, 24.0, 4, 4),
+    ("TST", "P-2602", "Routine tests sections 1-3, P-2602", 16, 9.0, 12.0, 2, 2),
+    ("SHP", "P-2601", "Crate and load P-2601 (ships 25 Nov)", 16, 12.4, 12.0, 2, 2),
+]
+OPERATORS = [  # fictional first names and initials
+    ("OP01", "Amir K.", "Day", "KIT"), ("OP02", "Bea L.", "Day", "KIT"), ("OP03", "Carlos M.", "Day", "FAB"),
+    ("OP04", "Dana P.", "Day", "FAB"), ("OP05", "Eli R.", "Day", "FAB"), ("OP06", "Farah S.", "Day", "BUS"),
+    ("OP07", "Gus T.", "Day", "BUS"), ("OP08", "Hana V.", "Day", "SWA"), ("OP09", "Ivan W.", "Day", "SWA"),
+    ("OP10", "Jo Y.", "Day", "SWA"), ("OP11", "Kiran Z.", "Day", "SWA"), ("OP12", "Lucia A.", "Day", "SWA"),
+    ("OP13", "Marco B.", "Day", "CCW"), ("OP14", "Nadia C.", "Day", "CCW"), ("OP15", "Omar D.", "Day", "CCW"),
+    ("OP16", "Pia E.", "Day", "CCW"), ("OP17", "Quinn F.", "Day", "TRA"), ("OP18", "Ravi G.", "Day", "TRA"),
+    ("OP19", "Sana H.", "Day", "TRA"), ("OP20", "Theo J.", "Day", "TRA"), ("OP21", "Uma N.", "Day", "TST"),
+    ("OP22", "Victor O.", "Day", "TST"), ("OP23", "Wen Q.", "Day", "SHP"), ("OP24", "Xavier U.", "Day", "SHP"),
+    ("OP25", "Yara I.", "Evening", "FAB"), ("OP26", "Zane X.", "Evening", "FAB"), ("OP27", "Aiko M.", "Evening", "FAB"),
+    ("OP28", "Bruno T.", "Evening", "CCW"), ("OP29", "Chloe R.", "Evening", "CCW"), ("OP30", "Dev S.", "Evening", "CCW"),
+    ("OP31", "Esme P.", "Evening", "CCW"),
+]
+# skill levels: 0 not trained, 1 in training, 2 with help, 3 independent, 4 can train others
+SKILL_EXTRA = {  # cross-training beyond the home work centre
+    "OP01": {"SHP": 3}, "OP02": {"SHP": 2}, "OP05": {"BUS": 3}, "OP07": {"SWA": 2}, "OP08": {"TST": 2},
+    "OP09": {"BUS": 2}, "OP12": {"KIT": 3}, "OP16": {"TRA": 3}, "OP20": {"CCW": 2}, "OP22": {"SWA": 3},
+    "OP24": {"KIT": 3}, "OP14": {"TST": 1},
+}
+SKILL_HOME = {  # home-station level where it is not 3
+    "OP01": 4, "OP03": 4, "OP06": 4, "OP08": 4, "OP10": 2, "OP11": 1, "OP13": 4, "OP17": 4, "OP21": 4,
+    "OP22": 2, "OP23": 4, "OP25": 4, "OP27": 2, "OP28": 4, "OP31": 1,
+}
+
+
+def _shop_floor(data: Dataset, rng) -> Dataset:
+    d = lambda off: AS_OF + timedelta(days=int(off))  # noqa: E731
+    wc = pd.DataFrame(WORK_CENTERS, columns=["wc_id", "name", "product_family", "shift_hours", "shifts", "people_needed"])
+    # 20 working days of history before today, then today
+    days = []
+    k = 1
+    while len(days) < 20:
+        x = d(-k)
+        if x.weekday() < 5:
+            days.append(x)
+        k += 1
+    days = sorted(days)
+    sched, quality, downtime = [], [], []
+    for day in days:
+        for w in WORK_CENTERS:
+            planned = w[5] * 8.0
+            att = float(np.clip(rng.normal(0.95, 0.04), 0.82, 1.04))
+            if w[0] == "SWA" and day >= d(-6):
+                att -= 0.06                     # assembly has run behind for a week
+            prod = float(np.clip(rng.normal(0.92, 0.03), 0.84, 0.99))
+            earned = round(planned * att, 1)
+            actual = round(earned / prod, 1)
+            ot = round(max(0.0, actual - planned) + (rng.uniform(0, 3) if rng.random() < .35 else 0.0), 1)
+            sched.append((day, w[0], "", "Daily plan", planned, earned, actual, w[5], w[5] - (1 if rng.random() < .08 else 0), ot))
+            if w[0] in ("TST", "FAB", "CCW"):
+                insp = int(rng.integers(4, 9))
+                fail = int(rng.random() < (0.22 if w[0] == "TST" else 0.10))
+                quality.append((day, w[0], "", insp, insp - fail, "" if not fail else
+                                {"TST": "Hi-pot fail: bus joint torque", "FAB": "Door gap out of tolerance",
+                                 "CCW": "Winding insulation damage"}[w[0]]))
+    # downtime: waiting for material leads the Pareto, then the press brake
+    reasons = [("Waiting for material", ["KIT", "SWA", "TRA", "BUS"], 0.35, (30, 120)),
+               ("Machine breakdown", ["FAB", "CCW"], 0.18, (20, 150)), ("Changeover", ["FAB", "CCW", "BUS"], 0.25, (20, 60)),
+               ("Waiting for drawings", ["SWA", "FAB"], 0.10, (30, 90)), ("Quality hold", ["TST", "TRA"], 0.08, (30, 90)),
+               ("No operator", ["SWA", "TST"], 0.04, (60, 240))]
+    notes = {"Waiting for material": "Kit incomplete at shift start", "Machine breakdown": "Press brake hydraulic fault",
+             "Changeover": "Tooling change", "Waiting for drawings": "Revision not released", "Quality hold": "Awaiting NCR decision",
+             "No operator": "Absence not covered"}
+    for day in days:
+        for _ in range(int(rng.integers(1, 4))):
+            r_ = reasons[int(rng.choice(len(reasons), p=[x[2] for x in reasons]))]
+            downtime.append((day, str(rng.choice(r_[1])), r_[0], float(rng.integers(*r_[3])), notes[r_[0]]))
+    # today
+    today = AS_OF
+    for w, pj, op, pl, ea, ac, need, have in TODAY_PLAN:
+        sched.append((today, w, pj, op, pl, ea, ac, need, have, 0.0))
+    quality += [(today, "TST", "P-2602", 6, 5, "Hi-pot fail on section 2: bus joint torque"),
+                (today, "FAB", "P-2605", 8, 8, ""), (today, "CCW", "P-2603", 3, 3, "")]
+    downtime += [(today, "KIT", "Waiting for material", 150.0, "P-2604 core and radiators not in stock (due 25-26 Nov)"),
+                 (today, "SWA", "No operator", 240.0, "One assembler absent, not covered"),
+                 (today, "FAB", "Changeover", 35.0, "Tooling change for P-2605 doors"),
+                 (today, "TST", "Quality hold", 90.0, "Section 2 failed hi-pot: re-torque bus joints and retest")]
+    hourly = []
+    tot = {w[0]: (w[3], w[4]) for w in TODAY_PLAN}
+    shape = [0.10, 0.13, 0.14, 0.13, 0.06, 0.14]      # 07-13, lunch at 11
+    for w, (pl, ea) in tot.items():
+        plan_h = [pl * 0.75 * x / sum(shape) for x in shape]
+        noise = rng.normal(1, 0.08, len(shape))
+        earn_h = np.array(plan_h) * noise
+        earn_h = earn_h / earn_h.sum() * ea
+        for i in range(len(shape)):
+            hourly.append((today, 7 + i, w, round(plan_h[i], 2), round(float(earn_h[i]), 2)))
+    safety = [(d(-41), "FAB", "Recordable", "Hand laceration on sheet edge, stitches"),
+              (d(-9), "TRA", "Near miss", "Crane load swung near walkway"),
+              (d(-4), "FAB", "First aid", "Cut on deburring station"),
+              (d(-3), "SWA", "Near miss", "Tripping hazard: cable reel in aisle"),
+              (d(-1), "SHP", "Near miss", "Forklift reversing without spotter")]
+    ops = pd.DataFrame(OPERATORS, columns=["operator_id", "name", "shift", "home_wc"])
+    skills = []
+    for o in OPERATORS:
+        skills.append((o[0], o[3], SKILL_HOME.get(o[0], 3)))
+        for w, lv in SKILL_EXTRA.get(o[0], {}).items():
+            skills.append((o[0], w, lv))
+    erp = [("CO-1000452", "Completion not posted", "TST", "P-2601", d(-3), 633050.0, "Production supervisor",
+            "Final confirmation of P-2601 not posted: no finished-goods receipt, so shipping cannot create the delivery"),
+           ("COGI-P2602", "Backflush error", "SWA", "P-2602", d(-2), 12400.0, "Production supervisor",
+            "4 component lines failed backflush on the P-2602 order"),
+           ("MI-26-0118", "Count variance", "BUS", "", d(-5), 3900.0, "Inventory analyst",
+            "Copper bus bar BUS-CU-1200: count 14 m below SAP"),
+           ("SCRAP-1122", "Scrap not posted", "FAB", "P-2605", d(-1), 640.0, "Production supervisor", "Two sheets scrapped, not posted"),
+           ("LBL-P2601", "Shipping labels", "SHP", "P-2601", today, 0.0, "Shipping", "Crate labels for P-2601 not printed"),
+           ("TECO-P2598", "Order past finish", "SWA", "", d(-12), 0.0, "Production supervisor",
+            "Old order technically complete but not closed")]
+    cms = [("CM-031", d(-4), "Tier 1", "Safety", "FAB", "First aid: cut at deburring", "No cut-resistant gloves at the station",
+            "Gloves and edge guard at the deburring station", "Production supervisor", d(1), "Done"),
+           ("CM-033", d(-3), "Tier 1", "Quality", "TST", "FPY 86% at test", "Bus joint torque not marked",
+            "Add torque-and-mark check to the assembly checklist", "Assembly lead", d(2), "Open"),
+           ("CM-034", d(-1), "Tier 2", "Delivery", "SWA", "Attainment 88% for the week", "Copper bus kits arrive after assembly starts",
+            "Kit bus with the assembly kit two days ahead", "Kitting lead", d(4), "Open")]
+    return replace(
+        data,
+        work_centers=normalize("work_centers", wc),
+        shop_schedule=normalize("shop_schedule", pd.DataFrame(sched, columns=["date", "wc_id", "project_id", "operation", "planned_hours",
+                                "earned_hours", "actual_hours", "people_needed", "people_assigned", "overtime_hours"])),
+        hourly_output=normalize("hourly_output", pd.DataFrame(hourly, columns=["date", "hour", "wc_id", "planned_hours", "earned_hours"])),
+        downtime=normalize("downtime", pd.DataFrame(downtime, columns=["date", "wc_id", "reason", "minutes", "note"])),
+        quality_checks=normalize("quality_checks", pd.DataFrame(quality, columns=["date", "wc_id", "project_id", "inspected", "passed",
+                                 "defect"])),
+        safety_events=normalize("safety_events", pd.DataFrame(safety, columns=["date", "wc_id", "type", "description"])),
+        operators=normalize("operators", ops),
+        skills=normalize("skills", pd.DataFrame(skills, columns=["operator_id", "wc_id", "level"])),
+        erp_open_items=normalize("erp_open_items", pd.DataFrame(erp, columns=["ref", "kind", "wc_id", "project_id", "created", "value",
+                                 "owner", "note"])),
+        countermeasures=normalize("countermeasures", pd.DataFrame(cms, columns=["cm_id", "date", "tier", "metric", "wc_id", "miss",
+                                  "cause", "countermeasure", "owner", "due", "status"])),
+    )
+
+
 def build_sample(as_of: date | None = None) -> Dataset:
     """The full sample dataset. ``as_of`` is accepted for API symmetry; the sample is anchored at ``AS_OF``."""
     from flowline.ctb import rolled_cost, run_ctb
@@ -581,7 +736,7 @@ def build_sample(as_of: date | None = None) -> Dataset:
                             ("Finished goods", 40_000)], columns=["stock_type", "year_end_target"])
     data = replace(data, inventory_history=normalize("inventory_history", pd.DataFrame(hist)),
                    inventory_targets=normalize("inventory_targets", targets))
-    return _process_steps(_financials(_extras(data, np.random.default_rng(11))))
+    return _shop_floor(_process_steps(_financials(_extras(data, np.random.default_rng(11)))), np.random.default_rng(23))
 
 
 def write_sample(folder: str) -> None:

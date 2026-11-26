@@ -52,6 +52,23 @@ def output_tables(r: Result) -> dict[str, tuple[pd.DataFrame, str]]:
             "team_scorecards": (r.team.scorecards, "Person x KPI: value, target, met"),
             "team_summary": (r.team.people, "One row per person: KPIs met, actions, alerts"),
         })
+    if getattr(r, "shop", None) is not None:
+        f = r.shop
+        tier = f.tier.drop(columns=["trend"])
+        t.update({
+            "shop_plan": (f.plan, "Today's build plan by work centre: planned, earned, clocked hours, people"),
+            "tier_board": (tier, "SQDCC tier board: value, target, status per letter"),
+            "shop_history": (f.history, "Daily attainment, productivity, overtime, first-pass yield, incidents"),
+            "downtime_pareto": (f.downtime, "Downtime minutes by reason, last 7 working days"),
+            "first_pass_yield": (f.fpy, "First-pass yield by work centre, today and 4 weeks"),
+            "misses": (f.misses, "Today's misses and their countermeasures"),
+            "countermeasure_log": (f.countermeasures, "Tier 1 and 2 countermeasure log"),
+            "skills_matrix": (f.skills, "Operators x work centres, skill level 0-4"),
+            "skills_coverage": (f.coverage, "Qualified people per work centre and shift"),
+            "training_plan": (f.training, "Who to train where, with trainer and target date"),
+            "erp_to_clear": (f.erp, "ERP items to clear, with age"),
+            "kits_short": (f.kits, "Parts not in stock for builds starting soon"),
+        })
     if getattr(r, "vsm", None) is not None:
         from flowline.vsm import vsm_table
         t["vsm"] = (vsm_table(r.vsm), f"Value stream map, {r.vsm.family}: current and future state per step")

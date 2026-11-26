@@ -27,3 +27,12 @@ margin_fade_alert_pts,1.5
 vsm_family,
 vsm_hours_per_day,16.0
 vsm_working_days,250
+shop_now_hour,0.0
+shop_day_start_hour,7.0
+attainment_target_pct,95.0
+fpy_target_pct,95.0
+productivity_target_pct,90.0
+overtime_target_pct,8.0
+skills_min_qualified,2
+erp_max_age_days,2
+kit_horizon_days,7

@@ -183,6 +183,38 @@ def build_alerts(r) -> pd.DataFrame:   # r: engine.Result
                 "Move validated projects into implementation; pick up the opportunities list.", "Materials manager",
                 k2["target_to_date"] - k2["realized"])
 
+    # ---- Shop floor: blocked shipments, safety, cells behind plan, quality, single points of failure, ERP hygiene
+    sf = getattr(r, "shop", None)
+    if sf is not None:
+        tdy = sf.today.date()
+        if len(sf.safety):
+            for x in sf.safety[(sf.safety["date"] == sf.today) & sf.safety["type"].isin(["Recordable", "Lost time", "First aid"])].itertuples():
+                add("Critical", "Shop floor", x.wc_id, tdy, f"{x.type} today at {x.wc_id}: {x.description}.",
+                    "Make the area safe, report it, and agree the countermeasure at Tier 1.", "Production supervisor")
+        erp = sf.erp
+        if len(erp):
+            for x in erp[erp["kind"].str.contains("Completion", case=False, na=False) & (erp["value"] > 0)].itertuples():
+                add("Critical" if x.overdue else "Warning", "Shop floor", x.ref, tdy,
+                    f"{x.project_id}: production order completion not posted for {x.age_days} days ({cur}{x.value:,.0f}). {x.note}.",
+                    "Post the final confirmation today (SAP CO11N) so finished goods can be received and shipped.",
+                    "Production supervisor", x.value)
+            rest = erp[erp["overdue"] & ~erp["kind"].str.contains("Completion", case=False, na=False)]
+            if len(rest):
+                add("Warning", "Shop floor", "ERP", tdy, f"{len(rest)} ERP items older than {s.erp_max_age_days} days: "
+                    + ", ".join(f"{x.kind.lower()} {x.ref}" for x in rest.itertuples()) + ".",
+                    "Clear them before the end of the shift (COGI, MI07, scrap and order closing).", "Production supervisor",
+                    rest["value"].sum())
+        for x in sf.plan[sf.plan["status"] == "Red"].itertuples():
+            add("Warning", "Shop floor", x.wc_id, tdy, f"{x.work_center} is at {x.attainment_pct:.0f}% of plan at "
+                f"{int(sf.now_hour)}:00" + (f" ({x.downtime_reason.lower()})" if x.downtime_reason else "")
+                + (f", {x.people_short:.0f} person short" if x.people_short else "") + ".",
+                "Recover in the shift (move people, overtime) or re-plan; log the countermeasure.", "Production supervisor")
+        if len(sf.coverage):
+            for x in sf.coverage[sf.coverage["qualified"] < s.skills_min_qualified].itertuples():
+                add("Warning", "Shop floor", x.wc_id, None, f"{x.work_center} ({x.shift.lower()} shift) has {x.qualified} qualified "
+                    f"person: one absence stops the station.", "Cross-train a second person (see the training plan).",
+                    "Production supervisor")
+
     # ---- Value stream: the biggest wait is the first place to improve flow
     v = getattr(r, "vsm", None)
     if v is not None and v.kpis.get("biggest_wait"):

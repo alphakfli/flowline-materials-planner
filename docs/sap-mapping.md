@@ -103,6 +103,20 @@ by material type from MC.9 or MB5B (stock on a posting date). Year-end targets c
 Settlement and results analysis (KKA2 / KKA3, CJ88) give the books' version of earned revenue and WIP; use them to
 reconcile the app's cost-to-cost view at month end.
 
+## Shop floor tables
+
+| Table | Where it lives in SAP |
+| --- | --- |
+| work_centers | Work centres (CR03; CRHD): capacity per shift from the capacity header (CR03 → Capacities) |
+| shop_schedule | Planned hours from the production order operations (COOIS, AFVV standard values); earned = confirmed yield x standard values; clocked hours from time confirmations (CO11N, AFRU) or the time system |
+| hourly_output | Confirmations by hour (AFRU, confirmation time stamps), or an MES / andon feed |
+| downtime | Downtime reasons from confirmations (variance reasons), PM breakdowns (IW38), or the shift log |
+| quality_checks | Inspection lots and results (QA32, QE51N); test reports |
+| safety_events | The EHS system or incident log (EHS incident management if used) |
+| operators, skills | HR qualifications (PA30 infotype 0024) or the training matrix kept by the supervisor |
+| erp_open_items | Missing final confirmations (COOIS with status), backflush errors (COGI), count differences (MI20 / MI07), scrap (MB1A / MIGO 551), orders past finish not technically complete (COOIS, TECO), shipping labels (VL02N output) |
+| countermeasures | Kept in the app (download the input workbook to save it) |
+
 ## process_steps (value stream map)
 
 | Column | Where it lives in SAP |
@@ -123,3 +137,4 @@ reconcile the app's cost-to-cost view at month end.
 | Inventory | MB52, MC.9, MB5B, the balance sheet |
 | Project cost and commitments | CJI3, CJI5, S_ALR_87013558 budget / actual / commitment |
 | Receivables aging | FBL5N, S_ALR_87012178 customer open items by due date |
+| Shop floor attainment | COOIS (operations, confirmed vs planned), CM01 / CM50 capacity load |

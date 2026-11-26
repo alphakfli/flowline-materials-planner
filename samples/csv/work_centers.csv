@@ -1,0 +1,9 @@
+wc_id,name,product_family,shift_hours,shifts,people_needed
+KIT,Kitting,Both,8.0,1.0,2.0
+FAB,Sheet metal & fabrication,Switchgear,8.0,2.0,3.0
+BUS,Bus bar shop,Switchgear,8.0,1.0,2.0
+SWA,Switchgear assembly,Switchgear,8.0,1.0,5.0
+CCW,Core & coil winding,Transformers,8.0,2.0,4.0
+TRA,Transformer assembly,Transformers,8.0,1.0,4.0
+TST,Test bay,Both,8.0,1.0,2.0
+SHP,Shipping,Both,8.0,1.0,2.0

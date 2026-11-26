@@ -1,0 +1,7 @@
+ref,kind,wc_id,project_id,created,value,owner,note
+CO-1000452,Completion not posted,TST,P-2601,2026-11-20,633050.0,Production supervisor,"Final confirmation of P-2601 not posted: no finished-goods receipt, so shipping cannot create the delivery"
+COGI-P2602,Backflush error,SWA,P-2602,2026-11-21,12400.0,Production supervisor,4 component lines failed backflush on the P-2602 order
+MI-26-0118,Count variance,BUS,,2026-11-18,3900.0,Inventory analyst,Copper bus bar BUS-CU-1200: count 14 m below SAP
+SCRAP-1122,Scrap not posted,FAB,P-2605,2026-11-22,640.0,Production supervisor,"Two sheets scrapped, not posted"
+LBL-P2601,Shipping labels,SHP,P-2601,2026-11-23,0.0,Shipping,Crate labels for P-2601 not printed
+TECO-P2598,Order past finish,SWA,,2026-11-11,0.0,Production supervisor,Old order technically complete but not closed

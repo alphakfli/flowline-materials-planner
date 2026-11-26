@@ -60,6 +60,24 @@ SCHEMA: dict[str, dict[str, str]] = {
     "billing_milestones": {"project_id": "str", "milestone_id": "str", "name": "str", "trigger": "str", "pct": "num",
                            "planned_date": "date", "invoice_no": "str", "invoice_date": "date", "amount_invoiced": "num",
                            "paid_date": "date"},
+    # Shop floor (optional): work centres, the daily build plan, hourly output, downtime, quality, safety,
+    # operators and skills, ERP items to clear, and the Tier 1/2 countermeasure log
+    "work_centers": {"wc_id": "str", "name": "str", "product_family": "str", "shift_hours": "num", "shifts": "num",
+                     "people_needed": "num"},
+    "shop_schedule": {"date": "date", "wc_id": "str", "project_id": "str", "operation": "str", "planned_hours": "num",
+                      "earned_hours": "num", "actual_hours": "num", "people_needed": "num", "people_assigned": "num",
+                      "overtime_hours": "num"},
+    "hourly_output": {"date": "date", "hour": "num", "wc_id": "str", "planned_hours": "num", "earned_hours": "num"},
+    "downtime": {"date": "date", "wc_id": "str", "reason": "str", "minutes": "num", "note": "str"},
+    "quality_checks": {"date": "date", "wc_id": "str", "project_id": "str", "inspected": "num", "passed": "num",
+                       "defect": "str"},
+    "safety_events": {"date": "date", "wc_id": "str", "type": "str", "description": "str"},
+    "operators": {"operator_id": "str", "name": "str", "shift": "str", "home_wc": "str"},
+    "skills": {"operator_id": "str", "wc_id": "str", "level": "num"},
+    "erp_open_items": {"ref": "str", "kind": "str", "wc_id": "str", "project_id": "str", "created": "date", "value": "num",
+                       "owner": "str", "note": "str"},
+    "countermeasures": {"cm_id": "str", "date": "date", "tier": "str", "metric": "str", "wc_id": "str", "miss": "str",
+                        "cause": "str", "countermeasure": "str", "owner": "str", "due": "date", "status": "str"},
     "process_steps": {"product_family": "str", "seq": "num", "kind": "str", "name": "str", "stock_type": "str",
                       "cycle_time_hours": "num", "changeover_hours": "num", "uptime_pct": "num", "operators": "num",
                       "target_days": "num", "target_changeover_hours": "num"},
@@ -108,6 +126,15 @@ class Settings:
     vsm_family: str = ""                         # product family for the value stream map; blank = first in process_steps
     vsm_hours_per_day: float = 16.0              # available hours per working day (shifts x hours)
     vsm_working_days: int = 250                  # working days per year, for takt time
+    shop_now_hour: float = 0.0                   # hour of the day the shop data runs to; 0 = latest hour in hourly_output
+    shop_day_start_hour: float = 7.0             # day shift start
+    attainment_target_pct: float = 95.0          # earned / planned hours
+    fpy_target_pct: float = 95.0                 # first-pass yield
+    productivity_target_pct: float = 90.0        # earned / clocked hours
+    overtime_target_pct: float = 8.0             # overtime / clocked hours
+    skills_min_qualified: int = 2                # people at level 3 or 4 per work centre and shift
+    erp_max_age_days: int = 2                    # ERP items older than this are overdue
+    kit_horizon_days: int = 7                    # builds starting within this many days must have full kits
 
     @property
     def year_end(self) -> date:
@@ -171,6 +198,16 @@ class Dataset:
     billing_milestones: pd.DataFrame = field(default_factory=lambda: empty("billing_milestones"))
     submittals: pd.DataFrame = field(default_factory=lambda: empty("submittals"))
     process_steps: pd.DataFrame = field(default_factory=lambda: empty("process_steps"))
+    work_centers: pd.DataFrame = field(default_factory=lambda: empty("work_centers"))
+    shop_schedule: pd.DataFrame = field(default_factory=lambda: empty("shop_schedule"))
+    hourly_output: pd.DataFrame = field(default_factory=lambda: empty("hourly_output"))
+    downtime: pd.DataFrame = field(default_factory=lambda: empty("downtime"))
+    quality_checks: pd.DataFrame = field(default_factory=lambda: empty("quality_checks"))
+    safety_events: pd.DataFrame = field(default_factory=lambda: empty("safety_events"))
+    operators: pd.DataFrame = field(default_factory=lambda: empty("operators"))
+    skills: pd.DataFrame = field(default_factory=lambda: empty("skills"))
+    erp_open_items: pd.DataFrame = field(default_factory=lambda: empty("erp_open_items"))
+    countermeasures: pd.DataFrame = field(default_factory=lambda: empty("countermeasures"))
     settings: Settings = field(default_factory=Settings)
 
     def tables(self) -> dict[str, pd.DataFrame]:

@@ -15,6 +15,7 @@ from flowline.inventory import InventoryResult, project_inventory
 from flowline.meetings import MeetingResult, build_agenda, run_meetings
 from flowline.models import Dataset, Settings
 from flowline.risk import RiskResult, run_risk
+from flowline.shopfloor import ShopFloorResult, run_shopfloor
 from flowline.suppliers import CMResult, SupplierResult, cm_view, score_suppliers
 from flowline.team import TeamResult, run_team
 from flowline.vsm import VSMResult, run_vsm
@@ -44,6 +45,7 @@ class Result:
     team: TeamResult | None = None
     financials: FinancialResult | None = None
     vsm: VSMResult | None = None
+    shop: ShopFloorResult | None = None
     alerts: pd.DataFrame = field(default_factory=pd.DataFrame)
 
     def summary(self) -> dict:
@@ -81,6 +83,7 @@ class Result:
             dept_kpis=self.team.kpis["dept_with_target"] if self.team else 0,
             **({f"fin_{k}": v for k, v in self.financials.kpis.items()} if self.financials else {}),
             **({f"vsm_{k}": v for k, v in self.vsm.kpis.items()} if self.vsm else {}),
+            **({f"shop_{k}": v for k, v in self.shop.kpis.items()} if self.shop else {}),
         )
 
 
@@ -123,6 +126,7 @@ def run(data: Dataset, scenario: Scenario | None = None, settings: Settings | No
     r.meetings = run_meetings(r)
     r.financials = run_financials(data, ctb, s)
     r.vsm = run_vsm(data, ctb, inv, s)
+    r.shop = run_shopfloor(data, ctb, s)
     r.alerts = build_alerts(r)
     r.team = run_team(r)
     r.meetings.agenda = build_agenda(r)
