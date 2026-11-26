@@ -489,6 +489,65 @@ Tier 1 and 2 countermeasure log for missed goals.
 | `due` | date (YYYY-MM-DD) |  |  |
 | `status` | text |  | Open or Done |
 
+## resources
+
+Weekly capacity: machines and labour pools. Turns on the Weekly capacity tab with routings and production_orders.
+
+| Column | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `resource_id` | text |  |  |
+| `name` | text |  |  |
+| `kind` | text |  | Machine or Labour |
+| `wc_id` | text |  | Work centre |
+| `units` | number |  | Number of machines, or people in the pool (per shift) |
+| `shifts_per_day` | number |  | Shifts worked a day |
+| `hours_per_shift` | number |  | Paid hours per shift |
+| `days_per_week` | number |  | Working days |
+| `efficiency_pct` | number |  | Share of the hours that produce: availability for machines, efficiency for people |
+| `overtime_hours` | number |  | Extra hours a week for the whole pool |
+
+## routings
+
+Steps per product family with machine and labour hours per unit.
+
+| Column | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `product_family` | text |  |  |
+| `seq` | number |  | Order of the steps |
+| `step` | text |  |  |
+| `wc_id` | text |  |  |
+| `machine_id` | text |  | Machine resource used (blank = none) |
+| `machine_hours` | number |  | Machine hours per unit |
+| `labour_id` | text |  | Labour pool used |
+| `labour_hours` | number |  | Labour hours per unit |
+| `lag_weeks` | number |  | Weeks a unit waits after the previous step (drying, curing, transfer) |
+
+## production_orders
+
+Orders to plan: one per project (or more).
+
+| Column | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `order_id` | text |  |  |
+| `project_id` | text |  |  |
+| `product_family` | text |  |  |
+| `item` | text |  |  |
+| `qty` | number |  | Units to make (sections, transformers ...) |
+| `due_date` | date (YYYY-MM-DD) |  | Blank = the project's customer date |
+| `priority` | number |  | 1 = highest |
+| `from_step` | text |  | First step still to do (for orders already in progress) |
+
+## capacity_calendar
+
+Weeks with less capacity: holidays, shutdowns, maintenance.
+
+| Column | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `week_start` | date (YYYY-MM-DD) |  | Monday of the week |
+| `resource_id` | text |  | Resource, or ALL |
+| `available_pct` | number |  | Share of normal capacity |
+| `note` | text |  |  |
+
 ## process_steps
 
 Value stream map for one product family: its route in order, process steps and the stock points between them. Turns on the Value stream tab.
@@ -574,6 +633,8 @@ Keys and defaults:
 | `skills_min_qualified` | 2 |  |
 | `erp_max_age_days` | 2 |  |
 | `kit_horizon_days` | 7 |  |
+| `capacity_weeks` | 16 |  |
+| `capacity_rule` | Due date |  |
 
 ## Rules the importer checks
 

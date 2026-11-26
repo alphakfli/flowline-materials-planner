@@ -1,0 +1,14 @@
+order_id,project_id,product_family,item,qty,due_date,priority,from_step
+MO-2602,P-2602,Switchgear,LU-2602,3.0,2026-12-06,1.0,Assemble
+MO-2603,P-2603,Transformers,TX-2603,2.0,2026-12-17,1.0,Assemble and dry
+MO-2604,P-2604,Transformers,TX-2604,4.0,2026-12-27,2.0,
+MO-2605,P-2605,Switchgear,LU-2605,8.0,2026-12-30,2.0,
+MO-2606,P-2606,Transformers,TX-2606,1.0,2027-01-09,1.0,
+MO-2607,P-2607,Switchgear,LU-2607,10.0,2027-01-16,2.0,
+MO-2608,P-2608,Transformers,TX-2608,6.0,2027-01-29,3.0,
+MO-2609,P-2609,Switchgear,LU-2609,6.0,2027-02-06,3.0,
+MO-2610,P-2610,Transformers,TX-2610,2.0,2027-03-05,2.0,
+MO-2611,P-2611,Switchgear,LU-2611,12.0,2027-03-16,2.0,
+MO-2612,P-2612,Transformers,TX-2612,3.0,2027-04-07,3.0,
+MO-2613,P-2613,Transformers,TX-2613,1.0,2027-05-02,2.0,
+MO-2614,P-2614,Switchgear,LU-2614,8.0,2027-05-17,4.0,

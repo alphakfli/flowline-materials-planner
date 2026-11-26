@@ -127,6 +127,17 @@ def build_agenda(r) -> pd.DataFrame:
                                                            for x in g.itertuples()),
                 "Kit what is here; confirm the build start", pid, "Planner")
 
+    # Weekly capacity: orders late on capacity and the overtime that fixes them
+    cp = getattr(r, "capacity", None)
+    if cp is not None and len(cp.orders):
+        late = cp.orders[(cp.orders["status"] == "Late") & (cp.orders["held_by"] != "MATERIAL")]
+        if len(late):
+            adv = cp.advice
+            add("Production", "Capacity: orders late on machines or people",
+                ", ".join(f"{x.order_id} {x.days_late:.0f} days ({x.held_by_name})" for x in late.itertuples()),
+                "Approve the overtime: " + "; ".join(f"{a.work_center} {a.detail} a week" for a in adv.itertuples())
+                if adv is not None and len(adv) else "Re-sequence or move the date", "", "Production supervisor")
+
     # Project financials: billing and cash for finance, changes and collections for contracts, submittals for engineering
     fi = getattr(r, "financials", None)
     if fi is not None:

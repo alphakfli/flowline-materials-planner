@@ -117,6 +117,17 @@ reconcile the app's cost-to-cost view at month end.
 | erp_open_items | Missing final confirmations (COOIS with status), backflush errors (COGI), count differences (MI20 / MI07), scrap (MB1A / MIGO 551), orders past finish not technically complete (COOIS, TECO), shipping labels (VL02N output) |
 | countermeasures | Kept in the app (download the input workbook to save it) |
 
+## Weekly capacity tables
+
+| Table | Where it lives in SAP |
+| --- | --- |
+| resources | Work centres and their capacities (CR03 / CRHD, KAKO): number of individual capacities, shifts, operating time, utilization % |
+| routings | Routings (CA03; PLKO / PLPO): operations, work centre, standard values (machine time, labour time) per base quantity |
+| production_orders | Planned and production orders (MD04, COOIS) or sales order items for each project; quantity, basic finish date, priority |
+| capacity_calendar | Factory calendar (SCAL) and capacity intervals for shutdowns |
+
+Cross-check the load against CM01 / CM21 (capacity planning) when work centres and routings are maintained.
+
 ## process_steps (value stream map)
 
 | Column | Where it lives in SAP |

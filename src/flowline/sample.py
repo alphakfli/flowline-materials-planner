@@ -583,6 +583,49 @@ def _shop_floor(data: Dataset, rng) -> Dataset:
     )
 
 
+# ---- Weekly capacity plan: machines and labour pools, routings per unit, production orders ----
+RESOURCES = [  # id, name, kind, wc, units, shifts/day, hours/shift, days/week, efficiency %
+    ("LAS1", "Laser cutter", "Machine", "FAB", 1, 2, 8, 5, 85), ("PB1", "Press brake", "Machine", "FAB", 1, 2, 8, 5, 80),
+    ("CNC1", "Bus CNC punch", "Machine", "BUS", 1, 1, 8, 5, 85), ("WND", "Winding machines", "Machine", "CCW", 2, 2, 8, 5, 85),
+    ("OVN1", "Vacuum drying oven", "Machine", "TRA", 1, 3, 8, 5, 90), ("HVT1", "HV test set", "Machine", "TST", 1, 1, 8, 5, 90),
+    ("L-KIT", "Kitters", "Labour", "KIT", 2, 1, 8, 5, 90), ("L-FAB", "Fabricators", "Labour", "FAB", 3, 2, 8, 5, 90),
+    ("L-BUS", "Bus fitters", "Labour", "BUS", 2, 1, 8, 5, 90), ("L-SWA", "Switchgear assemblers", "Labour", "SWA", 5, 1, 8, 5, 90),
+    ("L-CCW", "Winders", "Labour", "CCW", 4, 2, 8, 5, 90), ("L-TRA", "Transformer fitters", "Labour", "TRA", 4, 1, 8, 5, 90),
+    ("L-TST", "Testers", "Labour", "TST", 2, 1, 8, 5, 90),
+]
+ROUTINGS = [  # family, seq, step, wc, machine, machine h/unit, labour pool, labour h/unit, weeks after the previous step
+    ("Switchgear", 10, "Kit", "KIT", "", 0, "L-KIT", 1.5, 0), ("Switchgear", 20, "Cut", "FAB", "LAS1", 0.8, "L-FAB", 1.5, 0),
+    ("Switchgear", 30, "Bend and weld", "FAB", "PB1", 1.2, "L-FAB", 5.5, 0),
+    ("Switchgear", 40, "Bus", "BUS", "CNC1", 0.6, "L-BUS", 3.5, 0),
+    ("Switchgear", 50, "Assemble", "SWA", "", 0, "L-SWA", 16, 1), ("Switchgear", 60, "Test", "TST", "HVT1", 1.5, "L-TST", 3, 0),
+    ("Transformers", 10, "Kit", "KIT", "", 0, "L-KIT", 6, 0), ("Transformers", 20, "Wind", "CCW", "WND", 50, "L-CCW", 100, 0),
+    ("Transformers", 30, "Assemble and dry", "TRA", "OVN1", 30, "L-TRA", 70, 1),
+    ("Transformers", 40, "Test", "TST", "HVT1", 12, "L-TST", 20, 1),
+]
+SECTIONS = {"P-2602": 3, "P-2605": 8, "P-2607": 10, "P-2609": 6, "P-2611": 12, "P-2614": 8}   # switchgear sections per lineup
+FROM_STEP = {"P-2602": "Assemble", "P-2603": "Assemble and dry"}                            # in build: what is left
+
+
+def _capacity(data: Dataset) -> Dataset:
+    res = pd.DataFrame(RESOURCES, columns=["resource_id", "name", "kind", "wc_id", "units", "shifts_per_day", "hours_per_shift",
+                                           "days_per_week", "efficiency_pct"]).assign(overtime_hours=0.0)
+    rt = pd.DataFrame(ROUTINGS, columns=["product_family", "seq", "step", "wc_id", "machine_id", "machine_hours", "labour_id",
+                                         "labour_hours", "lag_weeks"])
+    rows = []
+    for p in data.projects.itertuples():
+        if p.status in ("Built", "Shipped"):
+            continue
+        qty = SECTIONS.get(p.project_id, 8) if p.product_family == "Switchgear" else p.qty
+        rows.append((f"MO-{p.project_id[2:]}", p.project_id, p.product_family, p.top_item, qty, p.required_ship_date,
+                     p.priority, FROM_STEP.get(p.project_id, "")))
+    po = pd.DataFrame(rows, columns=["order_id", "project_id", "product_family", "item", "qty", "due_date", "priority", "from_step"])
+    cal = pd.DataFrame([(AS_OF + timedelta(days=28), "ALL", 60.0, "Plant closed 24-25 Dec"),
+                        (AS_OF + timedelta(days=35), "ALL", 60.0, "Plant closed 31 Dec-1 Jan")],
+                       columns=["week_start", "resource_id", "available_pct", "note"])
+    return replace(data, resources=normalize("resources", res), routings=normalize("routings", rt),
+                   production_orders=normalize("production_orders", po), capacity_calendar=normalize("capacity_calendar", cal))
+
+
 def build_sample(as_of: date | None = None) -> Dataset:
     """The full sample dataset. ``as_of`` is accepted for API symmetry; the sample is anchored at ``AS_OF``."""
     from flowline.ctb import rolled_cost, run_ctb
@@ -736,7 +779,7 @@ def build_sample(as_of: date | None = None) -> Dataset:
                             ("Finished goods", 40_000)], columns=["stock_type", "year_end_target"])
     data = replace(data, inventory_history=normalize("inventory_history", pd.DataFrame(hist)),
                    inventory_targets=normalize("inventory_targets", targets))
-    return _shop_floor(_process_steps(_financials(_extras(data, np.random.default_rng(11)))), np.random.default_rng(23))
+    return _capacity(_shop_floor(_process_steps(_financials(_extras(data, np.random.default_rng(11)))), np.random.default_rng(23)))
 
 
 def write_sample(folder: str) -> None:

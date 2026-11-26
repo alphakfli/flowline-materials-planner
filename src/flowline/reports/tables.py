@@ -52,6 +52,21 @@ def output_tables(r: Result) -> dict[str, tuple[pd.DataFrame, str]]:
             "team_scorecards": (r.team.scorecards, "Person x KPI: value, target, met"),
             "team_summary": (r.team.people, "One row per person: KPIs met, actions, alerts"),
         })
+    if getattr(r, "capacity", None) is not None:
+        c = r.capacity
+        load = c.load.stack().rename("load_hours").reset_index().rename(columns={"level_1": "week", "level_0": "resource_id"})
+        load.columns = ["resource_id", "week", "load_hours"]
+        cap = c.capacity.stack().rename("capacity_hours").reset_index()
+        cap.columns = ["resource_id", "week", "capacity_hours"]
+        rl = load.merge(cap, on=["resource_id", "week"]).merge(c.resources[["resource_id", "name", "kind", "wc_id"]], on="resource_id")
+        rl["load_pct"] = (rl["load_hours"] / rl["capacity_hours"].replace(0, float("nan")) * 100).fillna(0)
+        t.update({
+            "capacity_orders": (c.orders, "Weekly capacity plan: start, finish, lateness and what holds each order back"),
+            "capacity_steps": (c.steps, "Units and machine / labour hours per order, step and week"),
+            "resource_load": (rl, "Load and capacity per resource and week"),
+        })
+        if c.advice is not None and len(c.advice):
+            t["capacity_advice"] = (c.advice, "Overtime that brings capacity-late orders back on time")
     if getattr(r, "shop", None) is not None:
         f = r.shop
         tier = f.tier.drop(columns=["trend"])

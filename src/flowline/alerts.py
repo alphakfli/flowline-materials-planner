@@ -215,6 +215,19 @@ def build_alerts(r) -> pd.DataFrame:   # r: engine.Result
                     f"person: one absence stops the station.", "Cross-train a second person (see the training plan).",
                     "Production supervisor")
 
+    # ---- Weekly capacity: orders the machines and people cannot finish by the customer date
+    cp = getattr(r, "capacity", None)
+    if cp is not None and len(cp.orders):
+        adv = cp.advice
+        fix = ("; ".join(f"{x.work_center}: {x.detail} a week" for x in adv.itertuples())
+               if adv is not None and len(adv) else "")
+        for x in cp.orders[(cp.orders["status"] == "Late") & (cp.orders["held_by"] != "MATERIAL")].itertuples():
+            add("Warning", "Weekly capacity", x.order_id, x.due.date() if pd.notna(x.due) else None,
+                f"{x.order_id} ({x.project_id}, {x.qty:g} units) finishes {x.days_late:.0f} days after the customer date: "
+                f"held back by {x.held_by_name}.",
+                ("Overtime that brings it back: " + fix + "." if fix else "Re-sequence, split the order, or add capacity."),
+                "Production supervisor")
+
     # ---- Value stream: the biggest wait is the first place to improve flow
     v = getattr(r, "vsm", None)
     if v is not None and v.kpis.get("biggest_wait"):

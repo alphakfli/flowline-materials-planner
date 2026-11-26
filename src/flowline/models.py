@@ -78,6 +78,14 @@ SCHEMA: dict[str, dict[str, str]] = {
                        "owner": "str", "note": "str"},
     "countermeasures": {"cm_id": "str", "date": "date", "tier": "str", "metric": "str", "wc_id": "str", "miss": "str",
                         "cause": "str", "countermeasure": "str", "owner": "str", "due": "date", "status": "str"},
+    # Weekly capacity plan (optional): machines and labour pools, routings per family, production orders
+    "resources": {"resource_id": "str", "name": "str", "kind": "str", "wc_id": "str", "units": "num", "shifts_per_day": "num",
+                  "hours_per_shift": "num", "days_per_week": "num", "efficiency_pct": "num", "overtime_hours": "num"},
+    "routings": {"product_family": "str", "seq": "num", "step": "str", "wc_id": "str", "machine_id": "str", "machine_hours": "num",
+                 "labour_id": "str", "labour_hours": "num", "lag_weeks": "num"},
+    "production_orders": {"order_id": "str", "project_id": "str", "product_family": "str", "item": "str", "qty": "num",
+                          "due_date": "date", "priority": "num", "from_step": "str"},
+    "capacity_calendar": {"week_start": "date", "resource_id": "str", "available_pct": "num", "note": "str"},
     "process_steps": {"product_family": "str", "seq": "num", "kind": "str", "name": "str", "stock_type": "str",
                       "cycle_time_hours": "num", "changeover_hours": "num", "uptime_pct": "num", "operators": "num",
                       "target_days": "num", "target_changeover_hours": "num"},
@@ -135,6 +143,8 @@ class Settings:
     skills_min_qualified: int = 2                # people at level 3 or 4 per work centre and shift
     erp_max_age_days: int = 2                    # ERP items older than this are overdue
     kit_horizon_days: int = 7                    # builds starting within this many days must have full kits
+    capacity_weeks: int = 16                     # weeks in the capacity plan
+    capacity_rule: str = "Due date"              # loading sequence: Due date, Priority, Material ready
 
     @property
     def year_end(self) -> date:
@@ -198,6 +208,10 @@ class Dataset:
     billing_milestones: pd.DataFrame = field(default_factory=lambda: empty("billing_milestones"))
     submittals: pd.DataFrame = field(default_factory=lambda: empty("submittals"))
     process_steps: pd.DataFrame = field(default_factory=lambda: empty("process_steps"))
+    resources: pd.DataFrame = field(default_factory=lambda: empty("resources"))
+    routings: pd.DataFrame = field(default_factory=lambda: empty("routings"))
+    production_orders: pd.DataFrame = field(default_factory=lambda: empty("production_orders"))
+    capacity_calendar: pd.DataFrame = field(default_factory=lambda: empty("capacity_calendar"))
     work_centers: pd.DataFrame = field(default_factory=lambda: empty("work_centers"))
     shop_schedule: pd.DataFrame = field(default_factory=lambda: empty("shop_schedule"))
     hourly_output: pd.DataFrame = field(default_factory=lambda: empty("hourly_output"))

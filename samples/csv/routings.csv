@@ -1,0 +1,11 @@
+product_family,seq,step,wc_id,machine_id,machine_hours,labour_id,labour_hours,lag_weeks
+Switchgear,10.0,Kit,KIT,,0.0,L-KIT,1.5,0.0
+Switchgear,20.0,Cut,FAB,LAS1,0.8,L-FAB,1.5,0.0
+Switchgear,30.0,Bend and weld,FAB,PB1,1.2,L-FAB,5.5,0.0
+Switchgear,40.0,Bus,BUS,CNC1,0.6,L-BUS,3.5,0.0
+Switchgear,50.0,Assemble,SWA,,0.0,L-SWA,16.0,1.0
+Switchgear,60.0,Test,TST,HVT1,1.5,L-TST,3.0,0.0
+Transformers,10.0,Kit,KIT,,0.0,L-KIT,6.0,0.0
+Transformers,20.0,Wind,CCW,WND,50.0,L-CCW,100.0,0.0
+Transformers,30.0,Assemble and dry,TRA,OVN1,30.0,L-TRA,70.0,1.0
+Transformers,40.0,Test,TST,HVT1,12.0,L-TST,20.0,1.0

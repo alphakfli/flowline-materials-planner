@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.11.0 (November 2026)
+
+- **Weekly capacity** tab: an interactive finite-capacity plan of machines and labour pools, week by week. Edit
+  machines, people, shifts, hours, efficiency, overtime and the orders (quantity, priority, due date) and the plan
+  re-runs. Schedule by order, load heatmap, load vs capacity per resource, orders late on capacity vs material, and
+  overtime advice per work centre that can be applied in one click.
+- Unit-by-unit flow between steps with optional lag weeks; earliest start from clear to build; shutdown weeks.
+- New optional tables resources, routings, production_orders, capacity_calendar (sample: 6 machines, 7 labour pools,
+  routings for switchgear sections and transformers, 13 orders, Christmas shutdown); settings capacity_weeks and
+  capacity_rule. Alert, Production agenda item, Excel sheets and Power Query tables.
+- The value stream map uses `st.iframe` where available (`st.components.v1.html` is deprecated in Streamlit).
+
 ## 0.10.0 (November 2026)
 
 - **Shop floor** tab: SQDCC tier board with 10-day trends; today's build plan by work centre (plan to now, earned,

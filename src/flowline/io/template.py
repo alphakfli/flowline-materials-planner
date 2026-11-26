@@ -97,6 +97,20 @@ HELP = {
         "created": "Date it appeared", "value": "Value at stake"}),
     "countermeasures": ("Tier 1 and 2 countermeasure log for missed goals.", {
         "tier": "Tier 1 or Tier 2", "metric": "Safety, Quality, Delivery, Cost or Cash", "status": "Open or Done"}),
+    "resources": ("Weekly capacity: machines and labour pools. Turns on the Weekly capacity tab with routings and production_orders.", {
+        "kind": "Machine or Labour", "wc_id": "Work centre", "units": "Number of machines, or people in the pool (per shift)",
+        "shifts_per_day": "Shifts worked a day", "hours_per_shift": "Paid hours per shift", "days_per_week": "Working days",
+        "efficiency_pct": "Share of the hours that produce: availability for machines, efficiency for people",
+        "overtime_hours": "Extra hours a week for the whole pool"}),
+    "routings": ("Steps per product family with machine and labour hours per unit.", {
+        "seq": "Order of the steps", "machine_id": "Machine resource used (blank = none)", "machine_hours": "Machine hours per unit",
+        "labour_id": "Labour pool used", "labour_hours": "Labour hours per unit",
+        "lag_weeks": "Weeks a unit waits after the previous step (drying, curing, transfer)"}),
+    "production_orders": ("Orders to plan: one per project (or more).", {
+        "qty": "Units to make (sections, transformers ...)", "due_date": "Blank = the project's customer date",
+        "priority": "1 = highest", "from_step": "First step still to do (for orders already in progress)"}),
+    "capacity_calendar": ("Weeks with less capacity: holidays, shutdowns, maintenance.", {
+        "week_start": "Monday of the week", "resource_id": "Resource, or ALL", "available_pct": "Share of normal capacity"}),
     "process_steps": ("Value stream map for one product family: its route in order, process steps and the stock points "
                       "between them. Turns on the Value stream tab.", {
         "product_family": "Family as in projects.product_family (set vsm_family in settings if there are several)",

@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 from flowline.alerts import build_alerts
+from flowline.capacity import CapacityPlan, plan_capacity
 from flowline.cost import CostResult, run_cost
 from flowline.ctb import CTBResult, run_ctb
 from flowline.financials import FinancialResult, run_financials
@@ -46,6 +47,7 @@ class Result:
     financials: FinancialResult | None = None
     vsm: VSMResult | None = None
     shop: ShopFloorResult | None = None
+    capacity: CapacityPlan | None = None
     alerts: pd.DataFrame = field(default_factory=pd.DataFrame)
 
     def summary(self) -> dict:
@@ -84,6 +86,7 @@ class Result:
             **({f"fin_{k}": v for k, v in self.financials.kpis.items()} if self.financials else {}),
             **({f"vsm_{k}": v for k, v in self.vsm.kpis.items()} if self.vsm else {}),
             **({f"shop_{k}": v for k, v in self.shop.kpis.items()} if self.shop else {}),
+            **({f"cap_{k}": v for k, v in self.capacity.kpis.items() if not hasattr(v, "year")} if self.capacity else {}),
         )
 
 
@@ -127,6 +130,7 @@ def run(data: Dataset, scenario: Scenario | None = None, settings: Settings | No
     r.financials = run_financials(data, ctb, s)
     r.vsm = run_vsm(data, ctb, inv, s)
     r.shop = run_shopfloor(data, ctb, s)
+    r.capacity = plan_capacity(data, ctb, s, rule=s.capacity_rule)
     r.alerts = build_alerts(r)
     r.team = run_team(r)
     r.meetings.agenda = build_agenda(r)

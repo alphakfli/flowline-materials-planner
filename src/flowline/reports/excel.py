@@ -117,6 +117,8 @@ def excel_report(r: Result) -> bytes:
         ("Shop floor", None), ("Schedule attainment today (%)", S.get("shop_attainment_pct")),
         ("First-pass yield today (%)", S.get("shop_fpy_pct")), ("Labour productivity today (%)", S.get("shop_productivity_pct")),
         (f"Completed work not posted ({cur})", S.get("shop_unposted_value")),
+        ("Weekly capacity", None), ("Orders late on capacity", S.get("cap_late_capacity")),
+        ("Orders late on material", S.get("cap_late_material")), ("Busiest resource", S.get("cap_bottleneck_name")),
         ("Value stream", None), ("Lead time (days)", S.get("vsm_lead_time_days")),
         ("Value-added (%)", S.get("vsm_va_pct")), ("Biggest wait", S.get("vsm_biggest_wait")),
         ("Alerts", None), ("Critical", S["alerts_critical"]), ("Warning", S["alerts_warning"]),
@@ -155,7 +157,8 @@ def excel_report(r: Result) -> bytes:
                         ("receivables", "Receivables"), ("change_order_log", "Change orders"),
                         ("submittal_register", "Submittals"), ("vsm", "Value stream"),
                         ("tier_board", "Tier board"), ("shop_plan", "Shop plan"), ("misses", "Misses"),
-                        ("skills_coverage", "Skills coverage"), ("erp_to_clear", "ERP to clear"), ("kits_short", "Kits short")]:
+                        ("skills_coverage", "Skills coverage"), ("erp_to_clear", "ERP to clear"), ("kits_short", "Kits short"),
+                        ("capacity_orders", "Capacity plan"), ("resource_load", "Resource load")]:
         if name not in t:
             continue
         _styled_sheet(wb, title, t[name][0], {"message": 80, "detail": 70, "description": 40})

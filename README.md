@@ -47,6 +47,7 @@ customer and supplier names are invented.
 | Team and KPIs | Department KPIs vs target with 12-month trends; scorecards per buyer (their parts and suppliers), planner (their product family) and inventory analyst; alerts routed to the right person |
 | Project financials | Contract, budget, actual, committed and estimate to complete per project and cost element; EAC and margin fade; cost-to-cost revenue, unbilled and billings in excess; billing milestones that move with the material plan (build start, shipment, drawing approval); invoices not raised; receivables aging and DSO; fiscal-year billing at risk; change orders and submittals; project review PDF |
 | Shop floor | SQDCC tier board for Tier 1 and 2 meetings; today's build plan by work centre (planned vs earned vs clocked hours, people needed vs here); output by hour; downtime Pareto; first-pass yield; misses with countermeasures and a countermeasure log; skills matrix with coverage and a training plan; ERP items to clear; kits short from clear to build; one-page Tier 2 board PDF |
+| Weekly capacity | Interactive finite-capacity plan of machines and labour pools, week by week: edit people, shifts, efficiency, overtime and orders and it re-runs; schedule by order; load heatmap; load vs capacity per resource; orders late on capacity vs material; overtime advice you can apply in one click |
 | Value stream | Value stream map for one product family: process boxes with C/T, C/O, uptime, operators and load vs takt; stock triangles in days and dollars from the app's inventory; information flow; timeline with waiting vs process days, lead time and value-added %; biggest wait flagged; future state with stock-day and changeover targets, lead-time change and working capital freed; shown as an animated isometric plant (each step an illustrated building on its own tile, stock as piles of crates, lineups flowing through) that also downloads as one offline HTML file |
 | Meetings and actions | Weekly agenda per stakeholder (production, engineering, contracts, finance, suppliers and CMs, team); meeting pack PDF and text; editable action log with overdue flags; alerts added to the log in one click |
 | Alerts | One list across all areas: severity, due date, message, suggested action, owner, person, value |
@@ -111,8 +112,8 @@ open("review.pdf", "wb").write(pdf_report(r))
 | ![Supply risk](docs/images/supply_risk.png) | ![Cost reduction](docs/images/cost_reduction.png) |
 | **Team & KPIs** | **Meetings & actions** |
 | ![Team and KPIs](docs/images/team_kpis.png) | ![Meetings and actions](docs/images/meetings.png) |
-| **Shop floor** | |
-| ![Shop floor](docs/images/shop_floor.png) | |
+| **Shop floor** | **Weekly capacity** |
+| ![Shop floor](docs/images/shop_floor.png) | ![Weekly capacity](docs/images/weekly_capacity.png) |
 | **Project financials** | **Value stream** |
 | ![Project financials](docs/images/project_financials.png) | ![Value stream](docs/images/value_stream_isometric.png) |
 
@@ -136,6 +137,7 @@ optional table switches on more of the dashboard.
 | consumption_history | Monthly usage of repeat parts | MSEG goods issues (MB51), MCBE / MC.9 |
 | wbs_budget, cost_actuals, change_orders, billing_milestones, submittals | Project budget and cost by element, change orders, billing plan and invoices, submittals | PS (CJ30, CJI3), sales-order billing plan (FPLA / FPLT), VF03, FBL5N |
 | work_centers, shop_schedule, hourly_output, downtime, quality_checks, safety_events, operators, skills, erp_open_items, countermeasures | Work centres, daily plan and output, losses, quality, safety, people and skills, ERP items to clear, countermeasure log | PP (CR03, COOIS, CO11N, COGI), QM (QA32), MI20 |
+| resources, routings, production_orders, capacity_calendar | Machines and labour pools, hours per unit by step, orders to plan, shutdown weeks | CR03, CA03, COOIS, SCAL |
 | process_steps | One product family's route: process steps (C/T, C/O, uptime, operators) and stock points, with targets | Routing (CA03), work centres (CR03) |
 | risk_register, shipments, savings_projects | Your risks, inbound shipments, savings projects | Risk log, freight invoices / TMS, savings tracker |
 | settings | As-of date, fiscal year end, turns target, on-time window and other rules | – |

@@ -17,6 +17,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from flowline.capacity import plan_capacity
 from flowline.engine import Scenario, fmt_money, run
 from flowline.io.importer import load_files, workbook_bytes
 from flowline.io.template import template_bytes
@@ -179,7 +180,7 @@ c[4].metric("Year-end turns vs target", f"{S['turns_year_end']:.1f} vs {S['turns
             help="Fiscal-year COGS (closed months plus projection) divided by year-end inventory.")
 c[5].metric("Critical alerts", S["alerts_critical"], delta("alerts_critical"), delta_color="inverse")
 
-tabs = st.tabs(["Overview", "Clear to build", "Shop floor", "Inventory & working capital", "Contract manufacturers", "Suppliers",
+tabs = st.tabs(["Overview", "Clear to build", "Shop floor", "Weekly capacity", "Inventory & working capital", "Contract manufacturers", "Suppliers",
                 "Supply risk", "Cost reduction", "Project financials", "Team & KPIs", "Meetings & actions", "Alerts", "Data and exports",
                 "Value stream"])
 
@@ -507,8 +508,165 @@ with tabs[2]:
             else:
                 st.success("Every build starting soon has its full kit in stock.")
 
-# ---------------- Inventory ----------------
+# ---------------- Weekly capacity ----------------
 with tabs[3]:
+    if r.capacity is None:
+        st.info("Add the optional tables resources (machines and labour pools), routings (hours per unit by step) and "
+                "production_orders to plan labour and machines week by week. The sample company has them.")
+    else:
+        st.markdown("**Plan labour and machines week by week.** Orders are loaded in sequence onto each step of their routing; "
+                    "a step uses machine hours and labour hours at the same time, so whichever runs out first sets how many "
+                    "units get done that week. Change people, shifts, overtime or the orders below and the plan re-runs.")
+        dkey = st.session_state.get("actions_key", "")
+        if st.session_state.get("cap_key") != dkey:
+            st.session_state["cap_key"] = dkey
+            st.session_state["cap_res"] = data.resources.copy()
+            st.session_state["cap_orders"] = data.production_orders.assign(include=True)
+            st.session_state["cap_ver"] = 0
+        ver = st.session_state["cap_ver"]
+        o1, o2, o3, o4 = st.columns([1, 1.2, 1.2, 1])
+        horizon = o1.slider("Weeks", 8, 26, int(s.capacity_weeks), key="cap_weeks")
+        rule = o2.radio("Load orders by", ["Due date", "Priority", "Material ready"], horizontal=True, key="cap_rule")
+        not_early = o3.checkbox("Not before the planned start", value=True, key="cap_not_early",
+                                help="Off: an order may start as soon as its material is ready (pulls work forward, adds WIP).")
+        if o4.button("Reset to the data", width="stretch"):
+            st.session_state["cap_key"] = None
+            st.rerun()
+        e1, e2 = st.columns([1.15, 1])
+        with e1:
+            st.markdown("**Resources: machines and labour pools**")
+            res_ed = st.data_editor(
+                st.session_state["cap_res"][["resource_id", "name", "kind", "wc_id", "units", "shifts_per_day", "hours_per_shift",
+                                             "days_per_week", "efficiency_pct", "overtime_hours"]],
+                hide_index=True, width="stretch", key=f"cap_res_ed_{ver}", disabled=["resource_id", "name", "kind", "wc_id"],
+                column_config={"resource_id": "Id", "name": "Resource", "kind": "Kind", "wc_id": "Work centre",
+                               "units": st.column_config.NumberColumn("Machines / people", min_value=0, step=1),
+                               "shifts_per_day": st.column_config.NumberColumn("Shifts", min_value=0, max_value=3, step=1),
+                               "hours_per_shift": st.column_config.NumberColumn("h / shift", min_value=0, max_value=12),
+                               "days_per_week": st.column_config.NumberColumn("Days", min_value=0, max_value=7, step=1),
+                               "efficiency_pct": st.column_config.NumberColumn("Efficiency %", min_value=0, max_value=100),
+                               "overtime_hours": st.column_config.NumberColumn("Overtime h / week", min_value=0)})
+        with e2:
+            st.markdown("**Production orders**")
+            ord_ed = st.data_editor(
+                st.session_state["cap_orders"][["include", "order_id", "project_id", "product_family", "qty", "priority", "due_date",
+                                                "from_step"]],
+                hide_index=True, width="stretch", key=f"cap_ord_ed_{ver}", disabled=["order_id", "project_id", "product_family"],
+                column_config={"include": st.column_config.CheckboxColumn("Plan"), "order_id": "Order", "project_id": "Project",
+                               "product_family": "Family", "qty": st.column_config.NumberColumn("Qty (units)", min_value=0),
+                               "priority": st.column_config.NumberColumn("Priority", min_value=1, step=1),
+                               "due_date": st.column_config.DateColumn("Due"), "from_step": "Starts at step"})
+        ords = ord_ed.copy()
+        ords["due_date"] = pd.to_datetime(ords["due_date"], errors="coerce")
+        cp = plan_capacity(data, r.ctb, s, res_ed, ords, rule, not_early, horizon)
+        kc = cp.kpis
+        a = st.columns(6)
+        a[0].metric("Orders in the plan", kc["orders"] - kc["beyond"], f"{kc['beyond']} after the horizon", delta_color="off", **NOARROW)
+        a[1].metric("On time", kc["on_time"])
+        a[2].metric("Late: capacity", kc["late_capacity"], help="Held back by a machine or labour pool.")
+        a[3].metric("Late: material", kc["late_material"], help="Cannot start early enough because material arrives late (Clear to build).")
+        a[4].metric("Busiest resource", f"{kc['bottleneck_util']:.0f}% load", kc["bottleneck_name"], delta_color="off", **NOARROW)
+        a[5].metric("Average load", f"labour {kc['avg_util_labour']:.0f}%", f"machines {kc['avg_util_machine']:.0f}%", delta_color="off", **NOARROW)
+
+        if cp.advice is not None and len(cp.advice):
+            adv = cp.advice
+            st.warning("**To bring the capacity-late orders back:** " + "; ".join(
+                f"{x.work_center} ({x.detail} per week)" for x in adv.itertuples())
+                + (". That puts every order back on time." if adv.attrs.get("fixed") else
+                   ". That is not enough on its own: re-sequence, split the order or move the date."), icon="⏱️")
+            if st.button("Apply the suggested overtime"):
+                newres = res_ed.copy()
+                ot = adv.attrs.get("overtime", {})
+                newres["overtime_hours"] = newres["resource_id"].map(ot).fillna(newres["overtime_hours"])
+                st.session_state["cap_res"] = newres
+                st.session_state["cap_orders"] = ord_ed.copy()
+                st.session_state["cap_ver"] = ver + 1
+                st.rerun()
+
+        st.subheader("Schedule by order")
+        sp = cp.steps
+        if len(sp):
+            ordr = cp.orders.set_index("order_id")
+            order_list = [o for o in cp.orders["order_id"] if o in set(sp["order_id"])]
+            labels = {o: f"{o} · {ordr.at[o, 'project_id']}" for o in order_list}
+            steps_order = list(dict.fromkeys(data.routings.sort_values(["product_family", "seq"])["step"]))
+            palette = SERIES + ["#8f6bd6", "#d6a26b", "#6bb7d6", "#b5b5b5"]
+            colors = {st_: palette[i % len(palette)] for i, st_ in enumerate(steps_order)}
+            # each week cell is shared by the steps working on the order that week, side by side in routing order
+            cells = sp.groupby(["order_id", "week", "seq", "step"])["units"].sum().reset_index().sort_values(["order_id", "week", "seq"])
+            cells["k"] = cells.groupby(["order_id", "week"]).cumcount()
+            cells["n"] = cells.groupby(["order_id", "week"])["seq"].transform("count")
+            day = 24 * 3600 * 1000
+            cells["base"] = cells["week"] + pd.to_timedelta(cells["k"] * 7 / cells["n"], unit="D")
+            cells["width"] = 7 * day / cells["n"] * 0.94
+            fig = go.Figure()
+            for st_ in steps_order:
+                c_ = cells[cells["step"] == st_]
+                if not len(c_):
+                    continue
+                fig.add_trace(go.Bar(y=c_["order_id"].map(labels), x=c_["width"], base=c_["base"], orientation="h", name=st_,
+                                     marker_color=colors[st_], customdata=np.c_[c_["units"], c_["week"].dt.strftime("%d %b")],
+                                     hovertemplate="%{y}: " + st_ + ", week of %{customdata[1]}: %{customdata[0]:.1f} units<extra></extra>"))
+            fig.update_layout(barmode="overlay", bargap=.35)
+            dues = cp.orders[cp.orders["order_id"].isin(order_list)]
+            fig.add_trace(go.Scatter(x=dues["due"], y=dues["order_id"] + " · " + dues["project_id"], mode="markers", name="Due",
+                                     marker=dict(symbol="line-ns", size=18, line=dict(width=3, color=INK)),
+                                     hovertemplate="%{y}: due %{x|%d %b}<extra></extra>"))
+            late = dues[dues["status"] == "Late"]
+            if len(late):
+                fig.add_trace(go.Scatter(x=late["finish"], y=late["order_id"] + " · " + late["project_id"], mode="markers", name="Late finish",
+                                         marker=dict(symbol="x", size=11, color=CRIT),
+                                         hovertemplate="%{y}: finishes %{x|%d %b}<extra></extra>"))
+            fig.add_vline(x=pd.Timestamp(s.as_of_date), line=dict(color=INK2, dash="dot", width=1))
+            fig.update_yaxes(categoryorder="array", categoryarray=[labels[o] for o in order_list][::-1], title=None)
+            fig.update_xaxes(type="date", dtick=7 * day, tickformat="%d %b", showgrid=True, gridcolor=GRID)
+            st.plotly_chart(_fig(fig, max(320, 30 * len(order_list) + 110)), width="stretch")
+            st.caption("Each week is shared by the steps working on the order that week, in routing order. Black tick: customer "
+                       "date. ✕: finish after the customer date.")
+
+        st.subheader("Load by resource and week")
+        h1, h2 = st.columns([1.2, 1])
+        with h1:
+            u = cp.utilization.copy()
+            rn = cp.resources.set_index("resource_id")
+            u.index = [f"{rn.at[i, 'name']} ({rn.at[i, 'kind'][0]})" for i in u.index]
+            fig = go.Figure(go.Heatmap(z=u.values, x=[w.strftime("%d %b") for w in u.columns], y=u.index, zmin=0, zmax=100,
+                                       text=u.round(0).astype(int).astype(str).values, texttemplate="%{text}",
+                                       colorscale=[[0, "#f4f3ef"], [.6, "#9fc3ee"], [.85, "#2a78d6"], [1, "#1f3a5f"]],
+                                       colorbar=dict(title="Load %"), xgap=2, ygap=2,
+                                       hovertemplate="%{y}, week of %{x}: %{z:.0f}%<extra></extra>"))
+            fig.update_yaxes(autorange="reversed", tickfont=dict(size=10))
+            st.plotly_chart(_fig(fig, 30 * len(u) + 110), width="stretch")
+            st.caption("M = machine, L = labour. 100% = every available hour planned. The Christmas weeks run at 60% capacity.")
+        with h2:
+            pick = st.selectbox("Resource", list(rn.index), format_func=lambda i: f"{rn.at[i, 'name']} ({rn.at[i, 'kind']})",
+                                index=list(rn.index).index(kc["bottleneck"]) if kc["bottleneck"] in rn.index else 0, key="cap_pick")
+            col = "machine" if rn.at[pick, "kind"] == "Machine" else "labour"
+            ld = sp[sp[f"{col}_id"] == pick].groupby(["week", "order_id"])[f"{col}_hours"].sum().reset_index()
+            fig = go.Figure()
+            for i, (oid, gg) in enumerate(ld.groupby("order_id")):
+                fig.add_trace(go.Bar(x=gg["week"], y=gg[f"{col}_hours"], name=oid, marker_color=palette[i % len(palette)],
+                                     hovertemplate=oid + ", %{x|%d %b}: %{y:.0f} h<extra></extra>"))
+            fig.add_trace(go.Scatter(x=list(cp.capacity.columns), y=cp.capacity.loc[pick].values, name="Capacity", mode="lines",
+                                     line=dict(color=INK, width=2, shape="hv"), hovertemplate="%{x|%d %b}: %{y:.0f} h<extra></extra>"))
+            fig.update_layout(barmode="stack", bargap=.25)
+            fig.update_yaxes(title="hours", showgrid=True, gridcolor=GRID)
+            fig.update_xaxes(tickformat="%d %b")
+            st.plotly_chart(_fig(fig, 340), width="stretch")
+
+        st.subheader("Orders")
+        table(cp.orders[["order_id", "project_id", "product_family", "qty", "priority", "material_ready", "earliest_start", "start_week",
+                         "finish", "due", "days_late", "status", "held_by_name"]],
+              {"material_ready": st.column_config.DateColumn("Material ready"), "earliest_start": st.column_config.DateColumn("Earliest start"),
+               "start_week": st.column_config.DateColumn("Starts (week)"), "finish": st.column_config.DateColumn("Finishes"),
+               "due": st.column_config.DateColumn("Due"), "days_late": st.column_config.NumberColumn("Days late", format="%d"),
+               "held_by_name": "Held back by"})
+        st.caption("Earliest start = material ready from Clear to build (and the planned start if ticked). Finish = Friday of the week "
+                   "the last step finishes. 'After horizon' = due after the last planned week. Held back by = the last resource that ran out of hours "
+                   "for that order (or material).")
+
+# ---------------- Inventory ----------------
+with tabs[4]:
     k = r.inventory.kpis
     a = st.columns(5)
     a[0].metric("Inventory now", fmt_money(k["inventory_now"], cur))
@@ -570,7 +728,7 @@ with tabs[3]:
     table(r.ctb.excess, money_cols(cur, "excess_value", "unneeded_on_order_value"))
 
 # ---------------- Contract manufacturers ----------------
-with tabs[4]:
+with tabs[5]:
     perf = r.cm.performance
     st.subheader("Contract manufacturer summary")
     table(perf, {"otd_pct": st.column_config.NumberColumn("OTD %", format="%.0f%%"),
@@ -615,7 +773,7 @@ with tabs[4]:
             st.plotly_chart(_fig(fig, 260, title=dict(text="On-time delivery by month", font=dict(size=14))), width="stretch")
 
 # ---------------- Suppliers ----------------
-with tabs[5]:
+with tabs[6]:
     sc = r.suppliers.scorecard
     k = r.suppliers.kpis
     a = st.columns(4)
@@ -657,7 +815,7 @@ with tabs[5]:
 
 
 # ---------------- Supply risk ----------------
-with tabs[6]:
+with tabs[7]:
     rk = r.risk
     a = st.columns(4)
     a[0].metric("High risks", rk.kpis["risks_high"], f"of {rk.kpis['risks_total']}", delta_color="off", **NOARROW)
@@ -731,7 +889,7 @@ with tabs[6]:
         st.info("Add a shipments table to see logistics-provider performance.")
 
 # ---------------- Cost reduction ----------------
-with tabs[7]:
+with tabs[8]:
     co = r.cost
     k = co.kpis
     a = st.columns(4)
@@ -785,7 +943,7 @@ with tabs[7]:
     table(co.opportunities, {**money_cols(cur, "annual_value"), "finding": st.column_config.TextColumn(width="large")})
 
 # ---------------- Project financials ----------------
-with tabs[8]:
+with tabs[9]:
     fi = r.financials
     if fi is None:
         st.info("Add the optional tables wbs_budget, cost_actuals and billing_milestones (and change_orders, submittals) "
@@ -917,7 +1075,7 @@ with tabs[8]:
                        "delays the supplier's production release.")
 
 # ---------------- Team & KPIs ----------------
-with tabs[9]:
+with tabs[10]:
     tm = r.team
     st.subheader("Department KPIs")
     dep = tm.department
@@ -969,7 +1127,7 @@ with tabs[9]:
               config={"message": st.column_config.TextColumn(width="large")})
 
 # ---------------- Meetings & actions ----------------
-with tabs[10]:
+with tabs[11]:
     ag = r.meetings.agenda
     st.subheader("This week's meeting agenda")
     st.caption("Built from the model for each stakeholder group. Use one section per meeting, or run them in order in a "
@@ -1033,7 +1191,7 @@ with tabs[10]:
     b3.download_button("Download input workbook with the log", workbook_bytes(data), "flowline_input.xlsx", width="stretch")
 
 # ---------------- Alerts ----------------
-with tabs[11]:
+with tabs[12]:
     al = r.alerts
     f = st.columns(3)
     sev = f[0].multiselect("Severity", ["Critical", "Warning", "Info"], default=["Critical", "Warning"])
@@ -1064,7 +1222,7 @@ with tabs[11]:
     a2.download_button("Download alerts (CSV)", al.to_csv(index=False).encode(), "alerts.csv", "text/csv", width="stretch")
 
 # ---------------- Data and exports ----------------
-with tabs[12]:
+with tabs[13]:
     st.subheader("Exports")
     stamp = f"{s.as_of_date:%Y%m%d}"
     e = st.columns(5)
@@ -1091,7 +1249,7 @@ with tabs[12]:
     table(tbls[t])
 
 # ---------------- Value stream ----------------
-with tabs[13]:
+with tabs[14]:
     v = r.vsm
     if v is None:
         st.info("Add the optional table process_steps (one product family's route: process steps and the stock points "
@@ -1166,9 +1324,12 @@ with tabs[13]:
         if lines:
             st.markdown("\n".join(lines))
         with map_slot:
-            import streamlit.components.v1 as _components
             html_iso = vsm_iso_html(r, v=fv)
-            _components.html(html_iso, height=760)   # the map scales itself to fit this frame
+            if hasattr(st, "iframe"):       # Streamlit 1.5x+; components.v1.html is deprecated
+                st.iframe(html_iso, height=760)
+            else:
+                import streamlit.components.v1 as _components
+                _components.html(html_iso, height=760)   # the map scales itself to fit this frame
         st.download_button("Download the map (HTML)", html_iso, f"value_stream_{v.family.lower()}.html", "text/html",
                            help="One file that opens in any browser, offline. Good for a presentation.")
         st.caption("Shorter changeovers mostly free capacity (lower load vs takt); the lead time and the cash are in the "

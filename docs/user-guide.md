@@ -1,6 +1,6 @@
 # User guide
 
-This guide takes you through the FlowLine Materials Planner step by step, then through eighteen scenarios a Materials
+This guide takes you through the FlowLine Materials Planner step by step, then through nineteen scenarios a Materials
 Manager meets in a normal month. The numbers match the sample company, **Corvane Grid Equipment** (fictional),
 as of Monday 23 November 2026 with a fiscal year ending 31 December 2026.
 
@@ -50,7 +50,7 @@ creates the GitHub repository if needed, and pushes. Then deploy at [share.strea
 | Sidebar, **What-if** | Supplier slips or recovers; past-due POs arrive later; apply all push-outs. The whole model re-runs |
 | Header line | Company, as-of date, fiscal year end and the scenario name (**Base case** when no what-if is on) |
 | Six headline numbers | Projects clear to build, projects late to customer, inventory now, year-end landing, year-end turns vs target, critical alerts. With a what-if on, the small arrows show the change against the base case |
-| Tabs | Overview, Clear to build, Shop floor, Inventory & working capital, Contract manufacturers, Suppliers, Supply risk, Cost reduction, Project financials, Team & KPIs, Meetings & actions, Alerts, Data and exports, Value stream |
+| Tabs | Overview, Clear to build, Shop floor, Weekly capacity, Inventory & working capital, Contract manufacturers, Suppliers, Supply risk, Cost reduction, Project financials, Team & KPIs, Meetings & actions, Alerts, Data and exports, Value stream |
 
 Colors mean the same everywhere and always come with a word or icon: 🔴 red = late or critical, 🟠 amber = at
 risk or warning, 🟢 green = clear, grey = in build or built.
@@ -107,6 +107,24 @@ day shift (13:00 in the sample).
 7. **ERP to clear today**: completions not posted, backflush errors, count variances, scrap, open orders, labels,
    with age and what each one blocks; and the **kits short** for builds starting in the next 7 days, straight from
    Clear to build.
+
+### Weekly capacity
+
+Plan labour and machines week by week to fulfil the orders.
+
+1. **Controls**: number of weeks (8-26), the loading sequence (due date, priority, or material ready), and whether an
+   order may start before its planned start. **Reset to the data** undoes your edits.
+2. **Resources**: every machine and labour pool with its number of machines or people, shifts, hours per shift, days,
+   efficiency and overtime hours a week. Edit any cell and the plan re-runs.
+3. **Production orders**: tick which to plan; change quantity (units: sections or transformers), priority or due date.
+4. Six numbers: orders in the plan, on time, **late on capacity** (held back by a machine or people), **late on
+   material** (cannot start early enough, from Clear to build), the busiest resource and the average load.
+5. **Overtime advice**: for capacity-late orders, the Saturday shifts per work centre that bring them back, and
+   **Apply the suggested overtime**.
+6. **Schedule by order**: one row per order, the weeks each step works on it, the customer date and late finishes.
+7. **Load by resource and week**: a heatmap of load % for every machine and labour pool, and for one resource its
+   load by order against capacity (the line drops in the Christmas shutdown weeks).
+8. **Orders**: material ready, earliest start, start week, finish, due, days late, and what held it back.
 
 ### Inventory & working capital
 
@@ -574,6 +592,25 @@ download the **Tier 2 board** for the record.
 COGI and post the scrap before 15:30; ask Grace to recount the copper bus with the stores lead. In the monthly
 one-to-ones, the training plan becomes each person's objective.
 
+### Scenario 19. Weekly capacity: can we make the transformer orders?
+
+*Thursday. The production planner and supervisor plan the next 16 weeks of labour and machines.*
+
+1. Open **Weekly capacity**. 10 orders fall inside the 16 weeks: 8 on time, **1 late on capacity**, **1 late on
+   material**.
+2. **Orders**: MO-2606 (P-2606, 1 transformer) is late on material: it cannot start before the OLTC-75 tap changer
+   arrives on 17 Jan. No amount of overtime fixes that; it is the buyer's expedite from scenario 2.
+3. MO-2608 (P-2608, 6 transformers) finishes 5 Feb against 29 Jan: **7 days late on capacity**, held back by the
+   transformer fitters. In **Load by resource**, pick *Transformer fitters*: they are at 100% in the weeks of 11 and
+   18 Jan, after the two shutdown weeks cut capacity to 60%. Each transformer then waits a week before test.
+4. The **overtime advice** says: transformer assembly, oven +16 h and fitters +64 h a week (two Saturdays). Press
+   **Apply the suggested overtime**: MO-2608 is back on time.
+5. Try other levers yourself: change the loading rule to **Priority**, untick an order that can move, or change the
+   number of fitters, and watch MO-2608's finish.
+
+**What you do:** take the overtime to the Tier 2 meeting for approval, and check the skills matrix on Shop floor for
+who can cover the Saturdays. Keep MO-2606 with the buyer: it is a material problem, not capacity.
+
 ---
 
 ## 5. Use your own data
@@ -587,7 +624,8 @@ one-to-ones, the training plan becomes each person's objective.
    and `submittals` if you have them); for the value stream map `process_steps` for one product family (set
    `vsm_family`, `vsm_hours_per_day` and `vsm_working_days` in settings); for the shop floor `work_centers` and
    `shop_schedule`, plus `hourly_output`, `downtime`, `quality_checks`, `safety_events`, `operators`, `skills`,
-   `erp_open_items` and `countermeasures` as you have them. The README sheet of the template explains every column. [sap-mapping.md](sap-mapping.md) says where
+   `erp_open_items` and `countermeasures` as you have them; for the weekly capacity plan `resources`, `routings` and
+   `production_orders` (with `capacity_calendar` for holidays). The README sheet of the template explains every column. [sap-mapping.md](sap-mapping.md) says where
    each column lives in SAP.
 3. In `settings`, set `as_of_date` (blank = today), `fiscal_year_end`, `turns_target` and `company`.
 4. Upload the workbook (or the CSV files together). Check **Data and exports → Data check** for problems.
@@ -626,6 +664,9 @@ sample data only.
 | Takt time | Available working time / customer demand: the pace the customer buys at |
 | C/T, C/O | Cycle time per unit; changeover (setup) time between jobs |
 | Value-added % | Process days / total lead time |
+| Finite capacity | Loading work only up to the hours available each week; what doesn't fit moves to the next week |
+| Routing | The steps a product goes through, with machine and labour hours per unit at each step |
+| Efficiency | Share of paid hours that produce: availability for a machine, efficiency for people |
 | SQDCC | Safety, Quality, Delivery, Cost, Cash: the five letters of the tier board |
 | Tier 1 / Tier 2 | Daily meetings: Tier 1 is the cell team at shift start; Tier 2 is the supervisor with support functions |
 | Standard (earned) hours | The hours the routing allows for the work completed |

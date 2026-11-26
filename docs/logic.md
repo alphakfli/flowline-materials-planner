@@ -262,7 +262,29 @@ Switched on by `work_centers` and `shop_schedule`; the other shop tables add to 
 * **Kits short**: clear-to-build lines (open POs and shortages) for projects in build, or starting within
   `kit_horizon_days` by their planned or forecast date.
 
-## 11. Value stream map (`vsm.py`)
+## 11. Weekly capacity (`capacity.py`)
+
+Switched on by `resources`, `routings` and `production_orders`; `capacity_calendar` reduces weeks.
+
+* **Capacity per resource and week** = units × shifts a day × hours a shift × days a week × efficiency % ×
+  calendar % + overtime hours.
+* **Orders** are loaded one at a time in the chosen sequence: due date (then priority), priority (then due date), or
+  material ready. **Earliest start** = today, or for orders not yet in build the material-ready date from clear to
+  build, and the planned start when *not before the planned start* is on.
+* **Each step** of the order's routing (from `from_step` for orders in progress), week by week: units this week =
+  the smallest of the units still to do, the units the previous step has finished (`lag_weeks` earlier), machine
+  hours left / machine hours per unit, and labour hours left / labour hours per unit. Units can be fractional, so a
+  long step spreads over weeks. What doesn't fit moves to the next week; the resource that ran out is recorded.
+* **Finish** = Friday of the week the last step finishes. **Late** = finish after the due date, or not finished
+  within the horizon when due inside it. **After horizon** = due after the last week. **Held back by** = the last
+  resource that ran out of hours for the order, or *material* when nothing held it but its start.
+* **Load %** = planned hours / capacity per resource and week. The busiest resource has the highest average load.
+* **Overtime advice**: for orders late on capacity, add a Saturday (8 h per machine and per person) to each work
+  centre that ran out, one at a time (or two together when one alone doesn't help), keep the one that most reduces
+  the units finished after their due dates, and repeat until every order is on time (at most two Saturdays per work
+  centre).
+
+## 12. Value stream map (`vsm.py`)
 
 Switched on by the optional table `process_steps`: one product family's route as *Process* and *Stock* rows in flow
 order. The family is `vsm_family`, or the first in the table.
@@ -290,7 +312,7 @@ moves the WIP triangle by weeks, so read the map as a monthly snapshot, not a tr
 standard for one family; one-off projects with their own routings don't fit on one map. C/T and C/O are per unit
 of a family whose units differ in size. The map does not include kaizen bursts, supermarkets or pull signals.
 
-## 12. Alerts (`alerts.py`)
+## 13. Alerts (`alerts.py`)
 
 Critical: late projects, overdue long-lead orders, billing milestones reached but not invoiced, invoices more than
 60 days overdue, year-end landing more than 5% over target, CM overload

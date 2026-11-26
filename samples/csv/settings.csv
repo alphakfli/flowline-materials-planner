@@ -36,3 +36,5 @@ overtime_target_pct,8.0
 skills_min_qualified,2
 erp_max_age_days,2
 kit_horizon_days,7
+capacity_weeks,16
+capacity_rule,Due date
